@@ -32,9 +32,7 @@ public class TransacaoDiaria {
     private BigDecimal valorTotal;
 
     public boolean excedeLimit() {
-        BigDecimal limite = usuario.getTipoUsuario() == TipoUsuario.PF
-                ? new BigDecimal("10000.00")
-                : new BigDecimal("50000.00");
-        return valorTotal.compareTo(limite) > 0;
+        return valorTotal.compareTo(usuario.getTipoUsuario().getLimiteDiario()) > 0;
     }
+
 }

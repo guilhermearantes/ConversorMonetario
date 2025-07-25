@@ -5,22 +5,30 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "carteiras")
+@Table(name = "remessas")
 @Getter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Carteira {
+public class Remessa {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
-    private BigDecimal saldo;
+    @ManyToOne
+    @JoinColumn(name = "remetente_id", nullable = false)
+    private Usuario remetente;
 
-    @OneToOne
-    @JoinColumn(name = "usuario_id", nullable = false)
-    private Usuario usuario;
+    @ManyToOne
+    @JoinColumn(name = "destinatario_id", nullable = false)
+    private Usuario destinatario;
+
+    @Column(nullable = false)
+    private BigDecimal valor;
+
+    @Column(nullable = false)
+    private LocalDateTime dataHora;
 }
