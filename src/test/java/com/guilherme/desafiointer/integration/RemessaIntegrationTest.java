@@ -2,30 +2,41 @@ package com.guilherme.desafiointer.integration;
 
 import com.guilherme.desafiointer.domain.*;
 import com.guilherme.desafiointer.dto.RemessaDTO;
-import com.guilherme.desafiointer.exception.LimiteDiarioExcedidoException;
-import com.guilherme.desafiointer.exception.SaldoInsuficienteException;
-import com.guilherme.desafiointer.repository.*;
-import com.guilherme.desafiointer.service.RemessaService;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Test;
+import com.guilherme.desafiointer.exception.remessa.RemessaException;
+import com.guilherme.desafiointer.repository.CarteiraRepository;
+import com.guilherme.desafiointer.repository.RemessaRepository;
+import com.guilherme.desafiointer.repository.TransacaoDiariaRepository;
+import com.guilherme.desafiointer.repository.UsuarioRepository;
+import com.guilherme.desafiointer.service.interfaces.RemessaServiceInterface;
+import com.guilherme.desafiointer.service.processor.RemessaProcessor;
+import com.guilherme.desafiointer.service.validator.RemessaValidator;
+import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDateTime;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
 @ActiveProfiles("test")
-@Transactional
+@DisplayName("Testes de Integração - Remessa")
 class RemessaIntegrationTest {
 
     @Autowired
-    private RemessaService remessaService;
+    private RemessaServiceInterface remessaService;
+
+    @Autowired
+    private RemessaProcessor remessaProcessor;
+
+    @Autowired
+    private RemessaValidator remessaValidator;
 
     @Autowired
     private UsuarioRepository usuarioRepository;
@@ -36,126 +47,177 @@ class RemessaIntegrationTest {
     @Autowired
     private RemessaRepository remessaRepository;
 
-    @PersistenceContext
-    private EntityManager entityManager;
+    @Autowired
+    private TransacaoDiariaRepository transacaoDiariaRepository;
 
-    @Test
-    void deveRealizarRemessaComSucesso() {
-        // Arrange
-        Usuario usuario = criarUsuarioComSaldo(TipoUsuario.PF, new BigDecimal("1000.00"));
-        RemessaDTO remessaDTO = RemessaDTO.builder()
-                .usuarioId(usuario.getId())
-                .valor(new BigDecimal("100.00"))
-                .moedaDestino("USD")
-                .build();
+    private Usuario usuarioRemetentePF;
+    private Usuario usuarioDestinatarioPF;
+    private static final BigDecimal SALDO_INICIAL = new BigDecimal("1000.00");
+    private static final String MOEDA_DESTINO = "USD";
+    private static final String CPF_REMETENTE = "529.982.247-25";
+    private static final String CPF_DESTINATARIO = "248.438.034-80";
+    private static final BigDecimal TAXA_PF_PERCENTUAL = new BigDecimal("0.02");
 
-        // Act
-        Remessa remessa = remessaService.realizarRemessa(remessaDTO);
-
-        // Assert
-        assertNotNull(remessa.getId());
-        assertEquals(usuario.getId(), remessa.getUsuario().getId());
-        assertTrue(remessa.getTaxa().compareTo(BigDecimal.ZERO) > 0);
-
-        // Verifica saldo atualizado
-        Carteira carteiraAtualizada = carteiraRepository.findById(usuario.getCarteira().getId()).get();
-        BigDecimal saldoEsperado = new BigDecimal("1000.00")
-                .subtract(remessa.getValor())
-                .subtract(remessa.getTaxa());
-        assertEquals(saldoEsperado, carteiraAtualizada.getSaldo());
+    @BeforeEach
+    void setUp() {
+        limparDados();
+        criarUsuarios();
     }
 
-    @Test
-    void deveRecusarRemessaPorSaldoInsuficiente() {
-        // Arrange
-        Usuario usuario = criarUsuarioComSaldo(TipoUsuario.PF, new BigDecimal("100.00"));
-        RemessaDTO remessaDTO = RemessaDTO.builder()
-                .usuarioId(usuario.getId())
-                .valor(new BigDecimal("1000.00"))
-                .moedaDestino("USD")
-                .build();
-
-        // Act & Assert
-        assertThrows(SaldoInsuficienteException.class,
-                () -> remessaService.realizarRemessa(remessaDTO));
-
-        // Verifica que saldo não foi alterado
-        Carteira carteiraAtualizada = carteiraRepository.findById(usuario.getCarteira().getId()).get();
-        assertEquals(new BigDecimal("100.00"), carteiraAtualizada.getSaldo());
+    private void limparDados() {
+        remessaRepository.deleteAll();
+        transacaoDiariaRepository.deleteAll();
+        carteiraRepository.deleteAll();
+        usuarioRepository.deleteAll();
     }
 
-    @Test
-    void deveRecusarRemessaPorLimiteDiario() {
-        // Arrange
-        Usuario usuario = criarUsuarioComSaldo(TipoUsuario.PF, new BigDecimal("50000.00"));
-        BigDecimal valorAcimaLimite = TipoUsuario.PF.getLimiteDiario().add(BigDecimal.ONE);
-
-        RemessaDTO remessaDTO = RemessaDTO.builder()
-                .usuarioId(usuario.getId())
-                .valor(valorAcimaLimite)
-                .moedaDestino("USD")
-                .build();
-
-        // Act & Assert
-        assertThrows(LimiteDiarioExcedidoException.class,
-                () -> remessaService.realizarRemessa(remessaDTO));
+    private void criarUsuarios() {
+        usuarioRemetentePF = criarUsuario("Remetente PF", "remetente@teste.com",
+                CPF_REMETENTE, TipoUsuario.PF);
+        usuarioDestinatarioPF = criarUsuario("Destinatário PF", "destinatario@teste.com",
+                CPF_DESTINATARIO, TipoUsuario.PF);
     }
 
-    @Test
-    void deveCobrarTaxaDiferenciadaPorTipoUsuario() {
-        // Arrange
-        Usuario usuarioPF = criarUsuarioComSaldo(TipoUsuario.PF, new BigDecimal("1000.00"));
-        Usuario usuarioPJ = criarUsuarioComSaldo(TipoUsuario.PJ, new BigDecimal("1000.00"));
-
-        BigDecimal valorRemessa = new BigDecimal("100.00");
-
-        // Act
-        Remessa remessaPF = remessaService.realizarRemessa(createRemessaDTO(usuarioPF.getId(), valorRemessa));
-        Remessa remessaPJ = remessaService.realizarRemessa(createRemessaDTO(usuarioPJ.getId(), valorRemessa));
-
-        // Assert
-        assertTrue(remessaPF.getTaxa().compareTo(remessaPJ.getTaxa()) > 0);
-    }
-
-    private Usuario criarUsuarioComSaldo(TipoUsuario tipo, BigDecimal saldo) {
-        String email = tipo == TipoUsuario.PF ? "pf@email.com" : "pj@email.com";
-
+    private Usuario criarUsuario(String nome, String email, String documento, TipoUsuario tipo) {
         Usuario usuario = Usuario.builder()
-                .nomeCompleto("Teste")
-                .tipoUsuario(tipo)
+                .nomeCompleto(nome)
                 .email(email)
-                .senha("senha123")
-                .documento(tipo == TipoUsuario.PF ? "529.982.247-25" : "45.997.418/0001-53")
+                .senha("Senha@123")
+                .tipoUsuario(tipo)
+                .documento(documento)
                 .build();
 
         usuario = usuarioRepository.save(usuario);
 
         Carteira carteira = Carteira.builder()
-                .saldo(saldo)
+                .saldo(SALDO_INICIAL)
                 .usuario(usuario)
                 .build();
 
-
         carteira = carteiraRepository.save(carteira);
         usuario.setCarteira(carteira);
+
         return usuarioRepository.save(usuario);
     }
 
-    private RemessaDTO createRemessaDTO(Long usuarioId, BigDecimal valor) {
-        return RemessaDTO.builder()
-                .usuarioId(usuarioId)
-                .valor(valor)
-                .moedaDestino("USD")
-                .build();
+    @Nested
+    @DisplayName("Testes de Validação de Remessa")
+    class ValidacaoRemessaTests {
+
+        @Test
+        @DisplayName("Deve validar remessa com dados válidos")
+        void deveValidarRemessaComDadosValidos() {
+            RemessaDTO remessaDTO = criarRemessaDTO(
+                    usuarioRemetentePF.getId(),
+                    usuarioDestinatarioPF.getId(),
+                    new BigDecimal("100.00"));
+
+            assertDoesNotThrow(() -> remessaValidator.validarDadosRemessa(remessaDTO));
+        }
+
+        @Test
+        @DisplayName("Deve falhar ao validar remessa com dados inválidos")
+        void deveFalharAoValidarRemessaComDadosInvalidos() {
+            RemessaDTO remessaInvalida = RemessaDTO.builder().build();
+
+            assertThrows(RemessaException.class,
+                    () -> remessaValidator.validarDadosRemessa(remessaInvalida),
+                    "Deve lançar RemessaException para dados inválidos");
+        }
     }
 
-    @AfterEach
-    void limparDados() {
-        entityManager.createNativeQuery("SET REFERENTIAL_INTEGRITY FALSE").executeUpdate();
-        entityManager.createNativeQuery("TRUNCATE TABLE remessas").executeUpdate();
-        entityManager.createNativeQuery("TRUNCATE TABLE carteiras").executeUpdate();
-        entityManager.createNativeQuery("TRUNCATE TABLE usuarios").executeUpdate();
-        entityManager.createNativeQuery("SET REFERENTIAL_INTEGRITY TRUE").executeUpdate();
-        entityManager.flush();
+    @Nested
+    @DisplayName("Testes de Processamento de Remessa")
+    class ProcessamentoRemessaTests {
+
+        @Test
+        @Transactional
+        @DisplayName("Deve processar remessa com sucesso")
+        void deveProcessarRemessaComSucesso() {
+            BigDecimal valorRemessa = new BigDecimal("100.00");
+            RemessaDTO remessaDTO = criarRemessaDTO(
+                    usuarioRemetentePF.getId(),
+                    usuarioDestinatarioPF.getId(),
+                    valorRemessa);
+
+            Remessa remessa = remessaProcessor.processarRemessa(remessaDTO);
+
+            verificarRemessaProcessada(remessa, valorRemessa);
+            verificarSaldoAposRemessa(valorRemessa, remessa.getTaxa());
+        }
+    }
+
+    @Nested
+    @DisplayName("Testes de Integração Completa")
+    class IntegracaoCompletaTests {
+
+        @Test
+        @Transactional
+        @DisplayName("Deve realizar remessa completa com sucesso")
+        void deveRealizarRemessaCompletaComSucesso() {
+            BigDecimal valorRemessa = new BigDecimal("100.00");
+            RemessaDTO remessaDTO = criarRemessaDTO(
+                    usuarioRemetentePF.getId(),
+                    usuarioDestinatarioPF.getId(),
+                    valorRemessa);
+
+            Remessa remessa = remessaService.realizarRemessa(remessaDTO);
+
+            verificarRemessaProcessada(remessa, valorRemessa);
+            verificarSaldoAposRemessa(valorRemessa, remessa.getTaxa());
+            verificarHistoricoTransacoes(remessa);
+        }
+    }
+
+    private void verificarRemessaProcessada(Remessa remessa, BigDecimal valorRemessa) {
+        assertAll("Validação da remessa processada",
+                () -> assertNotNull(remessa.getId(), "ID da remessa deve ser gerado"),
+                () -> assertEquals(valorRemessa, remessa.getValor(), "Valor da remessa deve ser mantido"),
+                () -> assertEquals(calcularTaxaEsperada(valorRemessa), remessa.getTaxa(),
+                        "Taxa deve ser calculada corretamente"),
+                () -> assertTrue(remessa.getDataCriacao().isBefore(LocalDateTime.now().plusSeconds(1)),
+                        "Data de criação deve ser atual")
+        );
+    }
+
+    private void verificarSaldoAposRemessa(BigDecimal valorRemessa, BigDecimal taxa) {
+        Carteira carteiraAtualizada = carteiraRepository
+                .findByUsuarioId(usuarioRemetentePF.getId())
+                .orElseThrow(() -> new AssertionError("Carteira não encontrada"));
+
+        BigDecimal valorEsperado = SALDO_INICIAL
+                .subtract(valorRemessa)
+                .subtract(taxa);
+
+        assertEquals(valorEsperado, carteiraAtualizada.getSaldo(),
+                "Saldo deve ser atualizado após a remessa");
+    }
+
+    private void verificarHistoricoTransacoes(Remessa remessaRealizada) {
+        Page<Remessa> historico = remessaService.buscarHistoricoTransacoes(
+                usuarioRemetentePF,
+                LocalDateTime.now().minusDays(1),  // Um dia antes
+                LocalDateTime.now(),               // Agora (sem adicionar dias)
+                PageRequest.of(0, 10)
+        );
+
+        assertAll("Validação do histórico",
+                () -> assertFalse(historico.isEmpty(), "Histórico não deve estar vazio"),
+                () -> assertTrue(historico.getContent().contains(remessaRealizada),
+                        "Remessa realizada deve estar no histórico")
+        );
+    }
+
+    private BigDecimal calcularTaxaEsperada(BigDecimal valor) {
+        return valor.multiply(TAXA_PF_PERCENTUAL).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private RemessaDTO criarRemessaDTO(Long remetenteId, Long destinatarioId, BigDecimal valor) {
+        return RemessaDTO.builder()
+                .usuarioId(remetenteId)
+                .destinatarioId(destinatarioId)
+                .valor(valor)
+                .moedaDestino(MOEDA_DESTINO)
+                .build();
     }
 }

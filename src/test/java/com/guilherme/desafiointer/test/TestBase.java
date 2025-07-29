@@ -1,93 +1,76 @@
-package com.guilherme.desafiointer.service;
+package com.guilherme.desafiointer.test;
 
-import com.guilherme.desafiointer.domain.Carteira;
-import com.guilherme.desafiointer.domain.TipoUsuario;
-import com.guilherme.desafiointer.domain.Usuario;
+import com.guilherme.desafiointer.domain.*;
 import com.guilherme.desafiointer.dto.RemessaDTO;
-import jakarta.annotation.PostConstruct;
+import com.guilherme.desafiointer.repository.*;
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.FlushModeType;
 import jakarta.persistence.PersistenceContext;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.util.Arrays;
-import java.util.List;
 
-@SpringBootTest
-@ActiveProfiles("test")
-@Transactional
 public abstract class TestBase {
+    // Constantes básicas
+    protected static final BigDecimal SALDO_PADRAO = new BigDecimal("1000.00");
+    protected static final String SENHA_PADRAO = "Senha@123";
 
+    // Injeções de dependências comuns
     @PersistenceContext
     protected EntityManager entityManager;
 
-    // Constantes úteis para testes
-    protected static final String CPF_VALIDO = "52998224725";
-    protected static final String SENHA_PADRAO = "senha123";
-    protected static final String NOME_PADRAO = "João Silva";
-    protected static final String EMAIL_PADRAO = "joao@email.com";
-    protected static final BigDecimal SALDO_PADRAO = new BigDecimal("1000.00");
+    @Autowired
+    protected UsuarioRepository usuarioRepository;
 
-    private static final List<String> TABELAS_SISTEMA = Arrays.asList(
-            "remessas",
-            "transacoes_diarias",
-            "carteiras",
-            "usuarios"
-    );
+    @Autowired
+    protected CarteiraRepository carteiraRepository;
 
-    @PostConstruct
-    public void init() {
-        entityManager.setFlushMode(FlushModeType.COMMIT);
-    }
+    @Autowired
+    protected RemessaRepository remessaRepository;
 
+    @Autowired
+    protected TransacaoDiariaRepository transacaoDiariaRepository;
+
+    // Métodos utilitários base
+    @Transactional
     protected void limparBancoDados() {
-        entityManager.flush();
         entityManager.createNativeQuery("SET REFERENTIAL_INTEGRITY FALSE").executeUpdate();
-
-        for (String tabela : TABELAS_SISTEMA) {
-            entityManager.createNativeQuery("TRUNCATE TABLE " + tabela).executeUpdate();
-        }
-
+        entityManager.createNativeQuery("TRUNCATE TABLE remessas").executeUpdate();
+        entityManager.createNativeQuery("TRUNCATE TABLE transacoes_diarias").executeUpdate();
+        entityManager.createNativeQuery("TRUNCATE TABLE carteiras").executeUpdate();
+        entityManager.createNativeQuery("TRUNCATE TABLE usuarios").executeUpdate();
         entityManager.createNativeQuery("SET REFERENTIAL_INTEGRITY TRUE").executeUpdate();
         entityManager.flush();
-        entityManager.clear();
     }
 
-    @Transactional
-    protected Usuario criarEPersistirUsuarioPF(String nome, String email, String cpf, BigDecimal saldoInicial) {
+    protected Usuario criarEPersistirUsuario(String nome, String email,
+                                             String documento, TipoUsuario tipo) {
         Usuario usuario = Usuario.builder()
                 .nomeCompleto(nome)
                 .email(email)
-                .documento(cpf)
+                .documento(documento)
+                .tipoUsuario(tipo)
                 .senha(SENHA_PADRAO)
-                .tipoUsuario(TipoUsuario.PF)
                 .build();
+
+        usuario = usuarioRepository.save(usuario);
 
         Carteira carteira = Carteira.builder()
+                .saldo(SALDO_PADRAO)
                 .usuario(usuario)
-                .saldo(saldoInicial)
                 .build();
 
+        carteira = carteiraRepository.save(carteira);
         usuario.setCarteira(carteira);
 
-        entityManager.persist(usuario);
-        entityManager.persist(carteira);
-        entityManager.flush();
-
-        return usuario;
+        return usuarioRepository.save(usuario);
     }
 
-    @Transactional
-    protected Usuario criarEPersistirUsuarioPF() {
-        return criarEPersistirUsuarioPF(NOME_PADRAO, EMAIL_PADRAO, CPF_VALIDO, SALDO_PADRAO);
-    }
-
-    protected RemessaDTO criarRemessaDTO(Long usuarioId, BigDecimal valor, String moedaDestino) {
+    protected RemessaDTO criarRemessaDTO(Long usuarioId, Long destinatarioId,
+                                         BigDecimal valor, String moedaDestino) {
         return RemessaDTO.builder()
                 .usuarioId(usuarioId)
+                .destinatarioId(destinatarioId)
                 .valor(valor)
                 .moedaDestino(moedaDestino)
                 .build();

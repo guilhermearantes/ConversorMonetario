@@ -1,29 +1,49 @@
 spring:
+  config:
+    activate:
+      on-profile: test
   datasource:
     url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
     username: sa
     password:
     driver-class-name: org.h2.Driver
   jpa:
-    database-platform: org.hibernate.dialect.H2Dialect
     hibernate:
       ddl-auto: create-drop
+    database-platform: org.hibernate.dialect.H2Dialect
     properties:
       hibernate:
         format_sql: true
     show-sql: true
-  h2:
+  test:
+    database:
+      replace: none
+    h2:
     console:
       enabled: true
+  cache:
+    type: simple # Habilita o uso de cache simples para testes
 
 api:
   cotacao:
     url: http://teste.api.cotacao
 
 cotacao:
-  default: 5.00
+  api:
+    url: http://teste.api.cotacao
+  default: "5.00"
 
 logging:
   level:
+    root: INFO
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    com.guilherme.desafiointer: DEBUG
+
+management:
+  endpoint:
+    health:
+      show-details: always
+  health:
+    db:
+      enabled: false # Desativa health-check de banco de dados em testes

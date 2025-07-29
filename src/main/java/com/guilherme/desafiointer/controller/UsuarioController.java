@@ -1,17 +1,22 @@
 package com.guilherme.desafiointer.controller;
+
 import com.guilherme.desafiointer.domain.Usuario;
 import com.guilherme.desafiointer.dto.UsuarioRequestDTO;
 import com.guilherme.desafiointer.dto.UsuarioResponseDTO;
+import com.guilherme.desafiointer.exception.remessa.RemessaException;
 import com.guilherme.desafiointer.service.UsuarioService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
 import java.math.BigDecimal;
 import java.util.List;
 
+/**
+ * Controller REST responsável por expor endpoints de gerenciamento de usuários.
+ * Implementa operações CRUD e funcionalidades específicas do domínio.
+ */
 @RestController
 @RequestMapping("/api/usuarios")
 @RequiredArgsConstructor
@@ -19,6 +24,13 @@ public class UsuarioController {
 
     private final UsuarioService usuarioService;
 
+    /**
+     * Cria um usuário.
+     *
+     * @param request DTO com dados do novo usuário
+     * @return ResponseEntity<UsuarioResponseDTO> com dados do usuário criado
+     * @throws RemessaException se o documento ou email já existirem
+     */
     @PostMapping
     public ResponseEntity<UsuarioResponseDTO> criar(@Valid @RequestBody UsuarioRequestDTO request) {
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -53,6 +65,15 @@ public class UsuarioController {
         return ResponseEntity.noContent().build();
     }
 
+    /**
+     * Altera a senha de um usuário.
+     *
+     * @param id ID do usuário
+     * @param senhaAtual senha atual para validação
+     * @param novaSenha nova senha a ser definida
+     * @return ResponseEntity<Void>
+     * @throws RemessaException se a senha atual estiver incorreta
+     */
     @PatchMapping("/{id}/senha")
     public ResponseEntity<Void> alterarSenha(
             @PathVariable Long id,

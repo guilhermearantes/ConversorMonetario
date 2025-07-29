@@ -14,9 +14,21 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
+
+/**
+ * Repositório para controle de transações diárias por usuário.
+ * Fornece métodos para rastreamento e validação de limites diários.
+ */
 @Repository
 public interface TransacaoDiariaRepository extends JpaRepository<TransacaoDiaria, Long> {
 
+    /**
+     * Busca a transação diária de um usuário numa data específica.
+     *
+     * @param usuario usuário alvo da busca
+     * @param data data da transação
+     * @return Optional<TransacaoDiaria> contendo a transação se encontrada
+     */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<TransacaoDiaria> findByUsuarioAndData(Usuario usuario, LocalDate data);
 
@@ -33,6 +45,14 @@ public interface TransacaoDiariaRepository extends JpaRepository<TransacaoDiaria
             LocalDate fim
     );
 
+    /**
+     * Verifica se existe alguma transação que excede o limite para um usuário numa data.
+     *
+     * @param usuario usuário a ser verificado
+     * @param data data da verificação
+     * @param limite valor limite a ser verificado
+     * @return boolean indicando se existe transação excedendo o limite
+     */
     @Query("SELECT COUNT(t) > 0 FROM TransacaoDiaria t " +
             "WHERE t.usuario = :usuario AND t.data = :data " +
             "AND t.valorTotal > :limite")

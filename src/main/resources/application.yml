@@ -1,25 +1,149 @@
+# Configurações principais do Spring
 spring:
+  # Configurações do banco de dados
   datasource:
     url: jdbc:h2:file:./data/desafiointer;DB_CLOSE_ON_EXIT=FALSE
     driver-class-name: org.h2.Driver
     username: sa
     password:
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      idle-timeout: 300000
 
+  # Configurações JPA
   jpa:
     database-platform: org.hibernate.dialect.H2Dialect
     hibernate:
       ddl-auto: update
-    show-sql: true
     properties:
       hibernate:
         format_sql: true
+        jdbc.batch_size: 50
+        order_inserts: true
+        order_updates: true
 
+  # Console H2
   h2:
     console:
       enabled: true
       path: /h2-console
+      settings:
+        web-allow-others: false
 
+  # Configurações de Cache
+  cache:
+    type: caffeine
+    cache-names: ${cache.config.names}
+
+# Configurações personalizadas de cache
+cache:
+  config:
+    names:
+      - cotacoes
+      - historicoTransacoes
+      - totaisTransacoes
+    default:
+      expire-after-write: PT24H
+      initial-capacity: 100
+      maximum-size: 500
+    cotacoes:
+      expire-after-write: PT1H
+      initial-capacity: 50
+      maximum-size: 200
+    historicoTransacoes:
+      expire-after-write: PT24H
+      initial-capacity: 100
+      maximum-size: 500
+    totaisTransacoes:
+      expire-after-write: PT12H
+      initial-capacity: 100
+      maximum-size: 300
+  # Configurações de evicção de cache
+  eviction:
+    enabled: true
+    cron: "0 0 * * * *"    # A cada hora
+    cotacoes:
+      cron: "0 0 0 * * *"  # Uma vez por dia à meia-noite
+
+# Configurações de API externa
+api:
+  cotacao:
+    url: https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoDolarDia(dataCotacao=@dataCotacao)
+    format: json
+    timeout: 5000  # timeout em millisegundos
+
+# Configurações de resiliência
+resilience4j:
+  retry:
+    instances:
+      cotacaoRetry:
+        maxAttempts: 3
+        waitDuration: 1s
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: 2
+  ratelimiter:
+    instances:
+      cotacaoRateLimit:
+        limitForPeriod: 10
+        limitRefreshPeriod: 1s
+        timeoutDuration: 0
+  circuitbreaker:
+    instances:
+      cotacaoCircuitBreaker:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+
+# Valor padrão de cotação
+cotacao:
+  default: 5.00
+
+# Configurações de logging
 logging:
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
   level:
+    root: INFO
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    com.guilherme.desafiointer:
+      service: DEBUG
+      config.cache: DEBUG
+    org.springframework:
+      cache: DEBUG
+      transaction: DEBUG
+      orm.jpa: DEBUG
+
+# Configurações de monitoramento
+management:
+  endpoints:
+    web:
+      exposure:
+        include:
+          - health
+          - metrics
+          - caches
+          - prometheus
+      base-path: /actuator
+      cors:
+        allowed-origins: "*"
+        allowed-methods: GET
+  endpoint:
+    health:
+      show-details: when_authorized
+    metrics:
+      enabled: true
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name:desafio-inter}
+    export:
+      prometheus:
+        enabled: true
+    cache:
+      enabled: true
+  info:
+    git:
+      mode: full

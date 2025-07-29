@@ -87,7 +87,7 @@ class CarteiraRepositoryTest {
             entityManager.clear();
 
             // Act
-            Optional<Carteira> carteira = carteiraRepository.findByUsuarioIdWithLock(usuario.getId());
+            Optional<Carteira> carteira = carteiraRepository.findByUsuarioIdWithPessimisticLock(usuario.getId());
 
             // Assert
             assertTrue(carteira.isPresent());
