@@ -2,7 +2,6 @@ package com.guilherme.desafiointer.config;
 
 import com.guilherme.desafiointer.config.constants.AppConstants;
 import com.guilherme.desafiointer.service.interfaces.CotacaoServiceInterface;
-import org.mockito.Mockito;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
@@ -19,8 +18,8 @@ import java.math.BigDecimal;
 public class TestConfig {
 
     @Bean
-    @Primary  // Adicionado Primary para garantir que esta seja a implementação usada em testes
-    public CacheManager testCacheManager() {  // Renomeado para evitar conflito
+    @Primary
+    public CacheManager testCacheManager() {
         return new ConcurrentMapCacheManager(
                 AppConstants.CACHE_COTACOES,
                 AppConstants.CACHE_HISTORICO,
@@ -30,13 +29,11 @@ public class TestConfig {
 
     @Bean
     @Primary
-    @Profile("test")
-    public CotacaoServiceInterface mockCotacaoService() {
-        var mockCotacaoService = Mockito.mock(CotacaoServiceInterface.class);
-        Mockito.when(mockCotacaoService.obterCotacao("USD"))
-                .thenReturn(new BigDecimal("5.00"));
-        return mockCotacaoService;
+    @Profile("integration-test")
+    public CotacaoServiceInterface integrationTestCotacaoService() {
+        return moeda -> new BigDecimal("5.00"); // Cotação fixa para testes
     }
+
 
     @Bean
     @Primary

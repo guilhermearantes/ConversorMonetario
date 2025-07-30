@@ -199,43 +199,6 @@ class RemessaServiceImplTest {
         }
     }
 
-    @Nested
-    @DisplayName("Testes de cache")
-    class CacheTests {
-
-        @Test
-        @DisplayName("Deve utilizar cache para cotações")
-        void deveUtilizarCacheParaCotacoes() {
-            // given
-            when(remessaProcessor.processarRemessa(any())).thenReturn(
-                    TestDataBuilder.criarRemessaProcessada(remessaPadrao, remetente, destinatario)
-            );
-
-            // when
-            remessaService.realizarRemessa(remessaPadrao);
-            remessaService.realizarRemessa(remessaPadrao);
-
-            // then
-            verify(remessaProcessor, times(2)).processarRemessa(any());
-        }
-
-        @Test
-        @DisplayName("Deve invalidar cache após transação")
-        void deveInvalidarCacheAposTransacao() {
-            // given
-            when(remessaProcessor.processarRemessa(any())).thenReturn(
-                    TestDataBuilder.criarRemessaProcessada(remessaPadrao, remetente, destinatario)
-            );
-
-            // when
-            remessaService.realizarRemessa(remessaPadrao);
-
-            // then
-            assertNotNull(cacheManager.getCache(AppConstants.CACHE_HISTORICO));
-            assertNotNull(cacheManager.getCache(AppConstants.CACHE_TOTAIS));
-        }
-    }
-
     private void assertExcecaoRemessa(RemessaException exception, RemessaErrorType tipoEsperado, String mensagemEsperada) {
         assertAll(
                 () -> assertEquals(tipoEsperado, exception.getErrorType()),

@@ -155,7 +155,8 @@ public class RemessaProcessorImpl implements RemessaProcessor {
 
     @Cacheable(
             cacheNames = AppConstants.CACHE_COTACOES,
-            key = "#moedaDestino"
+            key = "#moedaDestino",
+            unless = "#result == null"
     )
     public BigDecimal obterCotacao(String moedaDestino) {
         BigDecimal cotacao = cotacaoService.obterCotacao(moedaDestino);
