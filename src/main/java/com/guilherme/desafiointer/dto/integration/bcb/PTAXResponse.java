@@ -1,14 +1,14 @@
-package com.guilherme.desafiointer.dto;
+package com.guilherme.desafiointer.dto.integration.bcb;
 
 import lombok.Data;
 import java.util.List;
 
 @Data
-public class BCBResponse {
-    private List<BCBCotacao> value;
+public class PTAXResponse {
+    private List<PTAXValue> value;
 
     @Data
-    public static class BCBCotacao {
+    public static class PTAXValue {
         private String cotacaoCompra;
         private String cotacaoVenda;
         private String dataHoraCotacao;

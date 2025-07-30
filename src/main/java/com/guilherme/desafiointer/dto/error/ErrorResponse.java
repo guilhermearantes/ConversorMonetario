@@ -1,4 +1,4 @@
-package com.guilherme.desafiointer.dto;
+package com.guilherme.desafiointer.dto.error;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Builder;

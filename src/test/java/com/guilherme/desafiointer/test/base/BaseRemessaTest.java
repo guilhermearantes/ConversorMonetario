@@ -1,7 +1,7 @@
 package com.guilherme.desafiointer.test.base;
 
 import com.guilherme.desafiointer.domain.*;
-import com.guilherme.desafiointer.dto.RemessaDTO;
+import com.guilherme.desafiointer.dto.remessa.RemessaRequestDTO;
 import com.guilherme.desafiointer.test.TestBase;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestInstance;
@@ -90,7 +90,7 @@ public abstract class BaseRemessaTest extends TestBase {
         return valor.multiply(TAXA_PF_PERCENTUAL).setScale(2, RoundingMode.HALF_UP);
     }
 
-    protected RemessaDTO criarRemessaDTO(Long remetenteId, Long destinatarioId, BigDecimal valor) {
+    protected RemessaRequestDTO criarRemessaDTO(Long remetenteId, Long destinatarioId, BigDecimal valor) {
         return super.criarRemessaDTO(remetenteId, destinatarioId, valor, MOEDA_DESTINO);
     }
 }

@@ -1,9 +1,8 @@
 package com.guilherme.desafiointer.service;
 
 import com.guilherme.desafiointer.config.TestConfig;
-import com.guilherme.desafiointer.config.constants.AppConstants;
 import com.guilherme.desafiointer.domain.*;
-import com.guilherme.desafiointer.dto.RemessaDTO;
+import com.guilherme.desafiointer.dto.remessa.RemessaRequestDTO;
 import com.guilherme.desafiointer.repository.CarteiraRepository;
 import com.guilherme.desafiointer.repository.RemessaRepository;
 import com.guilherme.desafiointer.repository.TransacaoDiariaRepository;
@@ -14,15 +13,11 @@ import com.guilherme.desafiointer.service.strategy.StrategyFactory;
 import com.guilherme.desafiointer.service.strategy.TaxaStrategy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import java.math.BigDecimal;
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
 
 @SpringBootTest
 @Import(TestConfig.class)
@@ -57,7 +52,7 @@ class RemessaProcessorImplTest {
     private Usuario usuarioDestinatario;
     private Carteira carteiraRemetente;
     private Carteira carteiraDestinatario;
-    private RemessaDTO remessaDTO;
+    private RemessaRequestDTO remessaRequestDTO;
 
     @BeforeEach
     void setUp() {
@@ -65,7 +60,7 @@ class RemessaProcessorImplTest {
         usuarioDestinatario = criarUsuario(2L, "Destinatario");
         carteiraRemetente = criarCarteira(usuarioRemetente, SALDO_INICIAL);
         carteiraDestinatario = criarCarteira(usuarioDestinatario, BigDecimal.ZERO);
-        remessaDTO = criarRemessaDTO();
+        remessaRequestDTO = criarRemessaDTO();
     }
 
     // Métodos auxiliares
@@ -87,8 +82,8 @@ class RemessaProcessorImplTest {
                 .build();
     }
 
-    private RemessaDTO criarRemessaDTO() {
-        return RemessaDTO.builder()
+    private RemessaRequestDTO criarRemessaDTO() {
+        return RemessaRequestDTO.builder()
                 .usuarioId(1L)
                 .destinatarioId(2L)
                 .valor(VALOR_REMESSA)

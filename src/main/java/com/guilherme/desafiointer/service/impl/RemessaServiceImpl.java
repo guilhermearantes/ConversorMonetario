@@ -3,7 +3,7 @@ package com.guilherme.desafiointer.service.impl;
 import com.guilherme.desafiointer.config.constants.AppConstants;
 import com.guilherme.desafiointer.domain.Remessa;
 import com.guilherme.desafiointer.domain.Usuario;
-import com.guilherme.desafiointer.dto.RemessaDTO;
+import com.guilherme.desafiointer.dto.remessa.RemessaRequestDTO;
 import com.guilherme.desafiointer.exception.domain.LimiteDiarioExcedidoException;
 import com.guilherme.desafiointer.exception.domain.SaldoInsuficienteException;
 import com.guilherme.desafiointer.exception.remessa.RemessaErrorType;
@@ -39,16 +39,16 @@ public class RemessaServiceImpl implements RemessaServiceInterface {
 
     @Override
     @Transactional
-    public Remessa realizarRemessa(@Valid RemessaDTO remessaDTO) {
+    public Remessa realizarRemessa(@Valid RemessaRequestDTO remessaRequestDTO) {
         log.info("Iniciando processamento de remessa: [usuarioId={}, valor={}, moeda={}]",
-                remessaDTO.getUsuarioId(),
-                remessaDTO.getValor(),
-                remessaDTO.getMoedaDestino());
+                remessaRequestDTO.getUsuarioId(),
+                remessaRequestDTO.getValor(),
+                remessaRequestDTO.getMoedaDestino());
 
-        validarRemessa(remessaDTO);
+        validarRemessa(remessaRequestDTO);
 
         try {
-            Remessa remessa = processarRemessa(remessaDTO);
+            Remessa remessa = processarRemessa(remessaRequestDTO);
             log.info("Remessa processada com sucesso: [id={}]", remessa.getId());
             return remessa;
         } catch (LimiteDiarioExcedidoException | SaldoInsuficienteException | RemessaException e) {
@@ -64,9 +64,9 @@ public class RemessaServiceImpl implements RemessaServiceInterface {
         }
     }
 
-    private void validarRemessa(RemessaDTO remessaDTO) {
+    private void validarRemessa(RemessaRequestDTO remessaRequestDTO) {
         try {
-            remessaValidator.validarDadosRemessa(remessaDTO);
+            remessaValidator.validarDadosRemessa(remessaRequestDTO);
         } catch (RemessaException e) {
             // Propaga RemessaException diretamente
             throw e;
@@ -85,9 +85,9 @@ public class RemessaServiceImpl implements RemessaServiceInterface {
         }
     }
 
-    private Remessa processarRemessa(RemessaDTO remessaDTO) {
+    private Remessa processarRemessa(RemessaRequestDTO remessaRequestDTO) {
         try {
-            return remessaProcessor.processarRemessa(remessaDTO);
+            return remessaProcessor.processarRemessa(remessaRequestDTO);
         } catch (LimiteDiarioExcedidoException | SaldoInsuficienteException e) {
             throw e;
         } catch (RemessaException e) {

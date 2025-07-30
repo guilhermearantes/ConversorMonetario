@@ -2,7 +2,7 @@ package com.guilherme.desafiointer.service.impl;
 
 import com.guilherme.desafiointer.config.constants.AppConstants;
 import com.guilherme.desafiointer.domain.CotacaoHistorico;
-import com.guilherme.desafiointer.dto.PTAXResponse;
+import com.guilherme.desafiointer.dto.integration.bcb.PTAXResponse;
 import com.guilherme.desafiointer.repository.CotacaoHistoricoRepository;
 import com.guilherme.desafiointer.service.interfaces.CotacaoServiceInterface;
 import io.github.resilience4j.retry.annotation.Retry;

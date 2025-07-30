@@ -2,7 +2,7 @@ package com.guilherme.desafiointer.service.processor;
 
 import com.guilherme.desafiointer.config.constants.AppConstants;
 import com.guilherme.desafiointer.domain.*;
-import com.guilherme.desafiointer.dto.RemessaDTO;
+import com.guilherme.desafiointer.dto.remessa.RemessaRequestDTO;
 import com.guilherme.desafiointer.exception.remessa.RemessaErrorType;
 import com.guilherme.desafiointer.exception.remessa.RemessaException;
 import com.guilherme.desafiointer.exception.domain.SaldoInsuficienteException;
@@ -35,11 +35,11 @@ public class RemessaProcessorImpl implements RemessaProcessor {
     private final StrategyFactory strategyFactory;
 
     @Override
-    public Remessa processarRemessa(RemessaDTO remessaDTO) {
-        var dadosProcessamento = prepararDadosProcessamento(remessaDTO);
+    public Remessa processarRemessa(RemessaRequestDTO remessaRequestDTO) {
+        var dadosProcessamento = prepararDadosProcessamento(remessaRequestDTO);
         processarTransacao(dadosProcessamento);
         limparCachesAposTransacao();
-        return criarEPersistirRemessa(remessaDTO, dadosProcessamento);
+        return criarEPersistirRemessa(remessaRequestDTO, dadosProcessamento);
     }
 
     @Override
@@ -62,17 +62,17 @@ public class RemessaProcessorImpl implements RemessaProcessor {
             BigDecimal valorConvertido
     ) {}
 
-    private DadosProcessamentoRemessa prepararDadosProcessamento(RemessaDTO remessaDTO) {
-        var carteiraRemetente = buscarCarteiraComLock(remessaDTO.getUsuarioId());
-        var carteiraDestinatario = buscarCarteiraComLock(remessaDTO.getDestinatarioId());
-        var transacaoDiaria = processarLimiteDiario(carteiraRemetente, remessaDTO.getValor());
-        var taxa = calcularTaxa(carteiraRemetente, remessaDTO.getValor());
-        var valorTotalDebito = remessaDTO.getValor().add(taxa);
+    private DadosProcessamentoRemessa prepararDadosProcessamento(RemessaRequestDTO remessaRequestDTO) {
+        var carteiraRemetente = buscarCarteiraComLock(remessaRequestDTO.getUsuarioId());
+        var carteiraDestinatario = buscarCarteiraComLock(remessaRequestDTO.getDestinatarioId());
+        var transacaoDiaria = processarLimiteDiario(carteiraRemetente, remessaRequestDTO.getValor());
+        var taxa = calcularTaxa(carteiraRemetente, remessaRequestDTO.getValor());
+        var valorTotalDebito = remessaRequestDTO.getValor().add(taxa);
 
         validarSaldo(carteiraRemetente, valorTotalDebito);
 
-        var cotacao = obterCotacao(remessaDTO.getMoedaDestino());
-        var valorConvertido = calcularValorConvertido(remessaDTO.getValor(), cotacao);
+        var cotacao = obterCotacao(remessaRequestDTO.getMoedaDestino());
+        var valorConvertido = calcularValorConvertido(remessaRequestDTO.getValor(), cotacao);
 
         return new DadosProcessamentoRemessa(
                 carteiraRemetente, carteiraDestinatario, transacaoDiaria,
@@ -111,7 +111,7 @@ public class RemessaProcessorImpl implements RemessaProcessor {
         transacaoDiariaRepository.save(transacaoDiaria);
     }
 
-    private Remessa criarEPersistirRemessa(RemessaDTO dto, DadosProcessamentoRemessa dados) {
+    private Remessa criarEPersistirRemessa(RemessaRequestDTO dto, DadosProcessamentoRemessa dados) {
         var remessa = Remessa.builder()
                 .usuario(dados.carteiraRemetente().getUsuario())
                 .destinatario(dados.carteiraDestinatario().getUsuario())

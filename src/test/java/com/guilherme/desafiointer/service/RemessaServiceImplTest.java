@@ -4,7 +4,7 @@ import com.guilherme.desafiointer.config.TestConfig;
 import com.guilherme.desafiointer.config.constants.AppConstants;
 import com.guilherme.desafiointer.domain.Remessa;
 import com.guilherme.desafiointer.domain.Usuario;
-import com.guilherme.desafiointer.dto.RemessaDTO;
+import com.guilherme.desafiointer.dto.remessa.RemessaRequestDTO;
 import com.guilherme.desafiointer.exception.domain.SaldoInsuficienteException;
 import com.guilherme.desafiointer.exception.remessa.RemessaException;
 import com.guilherme.desafiointer.exception.remessa.RemessaErrorType;
@@ -51,7 +51,7 @@ class RemessaServiceImplTest {
 
     private Usuario remetente;
     private Usuario destinatario;
-    private RemessaDTO remessaPadrao;
+    private RemessaRequestDTO remessaPadrao;
 
     @BeforeEach
     void setUp() {
@@ -59,7 +59,7 @@ class RemessaServiceImplTest {
         destinatario = TestDataBuilder.criarDestinatarioPadrao();
         remessaPadrao = TestDataBuilder.criarRemessaPadrao(remetente.getId(), destinatario.getId());
 
-        doNothing().when(remessaValidator).validarDadosRemessa(any(RemessaDTO.class));
+        doNothing().when(remessaValidator).validarDadosRemessa(any(RemessaRequestDTO.class));
     }
 
     @Nested
@@ -70,7 +70,7 @@ class RemessaServiceImplTest {
         @DisplayName("Deve testar valores monetários com diferentes escalas")
         void deveTestarValoresMonetariosComDiferentesEscalas() {
             // given
-            RemessaDTO remessaTest = RemessaDTO.builder()
+            RemessaRequestDTO remessaTest = RemessaRequestDTO.builder()
                     .usuarioId(remetente.getId())
                     .destinatarioId(destinatario.getId())
                     .valor(new BigDecimal("100.00"))

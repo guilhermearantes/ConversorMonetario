@@ -1,6 +1,6 @@
 package com.guilherme.desafiointer.exception.handler;
 
-import com.guilherme.desafiointer.dto.ErrorResponse;
+import com.guilherme.desafiointer.dto.error.ErrorResponse;
 import com.guilherme.desafiointer.exception.base.BusinessException;
 import com.guilherme.desafiointer.exception.domain.LimiteDiarioExcedidoException;
 import com.guilherme.desafiointer.exception.domain.SaldoInsuficienteException;

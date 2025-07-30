@@ -1,4 +1,4 @@
-package com.guilherme.desafiointer.dto;
+package com.guilherme.desafiointer.dto.remessa;
 
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
@@ -16,7 +16,7 @@ import java.math.BigDecimal;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class RemessaDTO {
+public class RemessaRequestDTO {
     @NotNull(message = "ID do usuário é obrigatório")
     private Long usuarioId;
 

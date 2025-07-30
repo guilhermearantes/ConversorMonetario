@@ -5,10 +5,9 @@ import com.guilherme.desafiointer.domain.Carteira;
 import com.guilherme.desafiointer.domain.Remessa;
 import com.guilherme.desafiointer.domain.TipoUsuario;
 import com.guilherme.desafiointer.domain.Usuario;
-import com.guilherme.desafiointer.dto.RemessaDTO;
+import com.guilherme.desafiointer.dto.remessa.RemessaRequestDTO;
 import com.guilherme.desafiointer.exception.domain.LimiteDiarioExcedidoException;
 import com.guilherme.desafiointer.exception.domain.SaldoInsuficienteException;
-import com.guilherme.desafiointer.exception.remessa.RemessaException;
 import com.guilherme.desafiointer.repository.CarteiraRepository;
 import com.guilherme.desafiointer.repository.RemessaRepository;
 import com.guilherme.desafiointer.repository.TransacaoDiariaRepository;
@@ -83,9 +82,9 @@ class RemessaIntegrationTest {
         @DisplayName("Deve realizar remessa PF com sucesso")
         void deveRealizarRemessaPFComSucesso() {
             BigDecimal valorRemessa = new BigDecimal("100.00");
-            RemessaDTO remessaDTO = criarRemessaDTO(usuarioRemetentePF, valorRemessa);
+            RemessaRequestDTO remessaRequestDTO = criarRemessaDTO(usuarioRemetentePF, valorRemessa);
 
-            Remessa remessa = remessaService.realizarRemessa(remessaDTO);
+            Remessa remessa = remessaService.realizarRemessa(remessaRequestDTO);
 
             BigDecimal taxaEsperada = valorRemessa.multiply(new BigDecimal("0.02"))
                     .setScale(2, RoundingMode.HALF_UP); // 2% de taxa = 2.00
@@ -135,9 +134,9 @@ class RemessaIntegrationTest {
         @DisplayName("Deve realizar remessa PJ com sucesso")
         void deveRealizarRemessaPJComSucesso() {
             BigDecimal valorRemessa = new BigDecimal("1000.00");
-            RemessaDTO remessaDTO = criarRemessaDTO(usuarioRemetentePJ, valorRemessa);
+            RemessaRequestDTO remessaRequestDTO = criarRemessaDTO(usuarioRemetentePJ, valorRemessa);
 
-            Remessa remessa = remessaService.realizarRemessa(remessaDTO);
+            Remessa remessa = remessaService.realizarRemessa(remessaRequestDTO);
 
             BigDecimal taxaEsperada = valorRemessa.multiply(new BigDecimal("0.01"))
                     .setScale(2, RoundingMode.HALF_UP); // 1% de taxa para PJ = 10.00
@@ -335,8 +334,8 @@ class RemessaIntegrationTest {
         return usuarioRepository.save(usuario);
     }
 
-    private RemessaDTO criarRemessaDTO(Usuario remetente, BigDecimal valor) {
-        return RemessaDTO.builder()
+    private RemessaRequestDTO criarRemessaDTO(Usuario remetente, BigDecimal valor) {
+        return RemessaRequestDTO.builder()
                 .usuarioId(remetente.getId())
                 .destinatarioId(usuarioDestinatarioPF.getId())
                 .valor(valor)

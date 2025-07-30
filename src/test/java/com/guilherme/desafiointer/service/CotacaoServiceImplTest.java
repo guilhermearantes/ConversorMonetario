@@ -3,7 +3,7 @@ package com.guilherme.desafiointer.service;
 import com.guilherme.desafiointer.config.TestConfig;
 import com.guilherme.desafiointer.config.constants.AppConstants;
 import com.guilherme.desafiointer.domain.CotacaoHistorico;
-import com.guilherme.desafiointer.dto.PTAXResponse;
+import com.guilherme.desafiointer.dto.integration.bcb.PTAXResponse;
 import com.guilherme.desafiointer.repository.CotacaoHistoricoRepository;
 import com.guilherme.desafiointer.service.impl.CotacaoServiceImpl;
 import com.guilherme.desafiointer.service.testdata.TestDataBuilder;
@@ -25,7 +25,6 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.*;
 import java.util.Optional;
 

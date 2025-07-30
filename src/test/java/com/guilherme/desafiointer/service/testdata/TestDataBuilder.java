@@ -5,8 +5,8 @@ import com.guilherme.desafiointer.domain.CotacaoHistorico;
 import com.guilherme.desafiointer.domain.Remessa;
 import com.guilherme.desafiointer.domain.TipoUsuario;
 import com.guilherme.desafiointer.domain.Usuario;
-import com.guilherme.desafiointer.dto.PTAXResponse;
-import com.guilherme.desafiointer.dto.RemessaDTO;
+import com.guilherme.desafiointer.dto.integration.bcb.PTAXResponse;
+import com.guilherme.desafiointer.dto.remessa.RemessaRequestDTO;
 import com.guilherme.desafiointer.exception.remessa.RemessaErrorType;
 import com.guilherme.desafiointer.exception.remessa.RemessaException;
 import lombok.experimental.UtilityClass;
@@ -80,8 +80,8 @@ public class TestDataBuilder {
         return criarUsuario(2L, NOME_DESTINATARIO, EMAIL_DESTINATARIO, CPF_DESTINATARIO, TipoUsuario.PF);
     }
 
-    public static RemessaDTO criarRemessaPadrao(Long remetenteId, Long destinatarioId) {
-        return RemessaDTO.builder()
+    public static RemessaRequestDTO criarRemessaPadrao(Long remetenteId, Long destinatarioId) {
+        return RemessaRequestDTO.builder()
                 .usuarioId(remetenteId)
                 .destinatarioId(destinatarioId)
                 .valor(VALOR_REMESSA_PADRAO)
@@ -99,7 +99,7 @@ public class TestDataBuilder {
                 .build();
     }
 
-    public static Remessa criarRemessaProcessada(RemessaDTO dto, Usuario remetente, Usuario destinatario) {
+    public static Remessa criarRemessaProcessada(RemessaRequestDTO dto, Usuario remetente, Usuario destinatario) {
         return Remessa.builder()
                 .id(1L)
                 .usuario(remetente)
@@ -116,7 +116,7 @@ public class TestDataBuilder {
                 .build();
     }
 
-    public static Page<Remessa> criarPaginaHistorico(RemessaDTO dto, Usuario remetente, Usuario destinatario) {
+    public static Page<Remessa> criarPaginaHistorico(RemessaRequestDTO dto, Usuario remetente, Usuario destinatario) {
         return new PageImpl<>(List.of(criarRemessaProcessada(dto, remetente, destinatario)));
     }
 

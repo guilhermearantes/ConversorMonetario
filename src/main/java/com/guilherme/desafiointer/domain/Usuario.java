@@ -1,11 +1,11 @@
 package com.guilherme.desafiointer.domain;
 
 import jakarta.persistence.*;
+import lombok.*;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import lombok.*;
-import lombok.extern.slf4j.Slf4j;
-import java.util.Objects;
+import jakarta.validation.constraints.NotNull;
 
 /**
  * Entidade que representa um usuário do sistema.
@@ -14,11 +14,12 @@ import java.util.Objects;
 @Entity
 @Table(name = "usuarios")
 @Getter
-@Builder
-@NoArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
-@Slf4j
+@Builder
+@EqualsAndHashCode(of = "id")
 public class Usuario {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -32,66 +33,31 @@ public class Usuario {
     @Column(nullable = false, unique = true)
     private String email;
 
+    @NotBlank(message = "Documento é obrigatório")
+    @Column(nullable = false, unique = true)
+    private String documento;
+
+    @JsonIgnore
     @NotBlank(message = "Senha é obrigatória")
     @Column(nullable = false)
     private String senha;
 
+    @NotNull(message = "Tipo de usuário é obrigatório")
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private TipoUsuario tipoUsuario;
-
-    @Column(nullable = false, unique = true)
-    private String documento;
 
     @Setter
     @OneToOne(mappedBy = "usuario", cascade = CascadeType.ALL)
     private Carteira carteira;
 
+    @JsonIgnore
+    public String getSenha() {
+        return senha;
+    }
+
     public void setSenhaEncoded(String senhaEncoded) {
         this.senha = senhaEncoded;
-    }
-
-    /**
-     * Valida o documento do usuário (CPF ou CNPJ) antes da persistência.
-     */
-    @PrePersist
-    @PreUpdate
-    public void validarDocumento() {
-        if (documento == null || tipoUsuario == null) {
-            throw new IllegalArgumentException("Documento e tipo de usuário são obrigatórios");
-        }
-
-        String documentoLimpo = documento.replaceAll("[^0-9]", "");
-
-        if (tipoUsuario == TipoUsuario.PF && documentoLimpo.length() != 11) {
-            throw new IllegalArgumentException("CPF deve conter 11 dígitos numéricos");
-        }
-
-        if (tipoUsuario == TipoUsuario.PJ && documentoLimpo.length() != 14) {
-            throw new IllegalArgumentException("CNPJ deve conter 14 dígitos numéricos");
-        }
-
-        if (!tipoUsuario.validarDocumentoEspecifico(documentoLimpo)) {
-            String tipoDoc = (tipoUsuario == TipoUsuario.PF) ? "CPF" : "CNPJ";
-            log.error("{} inválido: {}", tipoDoc, documento);
-            throw new IllegalArgumentException(tipoDoc + " inválido");
-        }
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        Usuario usuario = (Usuario) o;
-        if (id == null || usuario.id == null) {
-            return false; // Se algum dos IDs for nulo, os objetos não são iguais
-        }
-        return id.equals(usuario.id);
-    }
-
-    @Override
-    public int hashCode() {
-        return id == null ? 0 : Objects.hash(id);
     }
 
     @Override
@@ -100,8 +66,8 @@ public class Usuario {
                 "id=" + id +
                 ", nomeCompleto='" + nomeCompleto + '\'' +
                 ", email='" + email + '\'' +
-                ", tipoUsuario=" + tipoUsuario +
                 ", documento='" + documento + '\'' +
+                ", tipoUsuario=" + tipoUsuario +
                 '}';
     }
 }

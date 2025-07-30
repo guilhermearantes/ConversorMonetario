@@ -1,7 +1,7 @@
 package com.guilherme.desafiointer.test;
 
 import com.guilherme.desafiointer.domain.*;
-import com.guilherme.desafiointer.dto.RemessaDTO;
+import com.guilherme.desafiointer.dto.remessa.RemessaRequestDTO;
 import com.guilherme.desafiointer.repository.*;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -66,9 +66,9 @@ public abstract class TestBase {
         return usuarioRepository.save(usuario);
     }
 
-    protected RemessaDTO criarRemessaDTO(Long usuarioId, Long destinatarioId,
-                                         BigDecimal valor, String moedaDestino) {
-        return RemessaDTO.builder()
+    protected RemessaRequestDTO criarRemessaDTO(Long usuarioId, Long destinatarioId,
+                                                BigDecimal valor, String moedaDestino) {
+        return RemessaRequestDTO.builder()
                 .usuarioId(usuarioId)
                 .destinatarioId(destinatarioId)
                 .valor(valor)

@@ -1,28 +1,24 @@
 
 package com.guilherme.desafiointer.service;
 
-import com.guilherme.desafiointer.domain.Carteira;
 import com.guilherme.desafiointer.domain.TipoUsuario;
 import com.guilherme.desafiointer.domain.Usuario;
-import com.guilherme.desafiointer.dto.UsuarioRequestDTO;
-import com.guilherme.desafiointer.dto.UsuarioResponseDTO;
 import com.guilherme.desafiointer.exception.remessa.RemessaErrorType;
 import com.guilherme.desafiointer.exception.remessa.RemessaException;
 import com.guilherme.desafiointer.repository.UsuarioRepository;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
-
-import java.math.BigDecimal;
 import java.util.Optional;
-
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
+
 
 @SpringBootTest
 @ActiveProfiles("test")
@@ -41,153 +37,122 @@ class UsuarioServiceTest {
     private static final String SENHA_VALIDA = "Senha@123";
     private static final String SENHA_NOVA = "NovaSenha@123";
     private static final String SENHA_ENCODED = "$2a$10$XXXXXXXXXXXXXXXXXXXXX";
-    private static final String SENHA_CURTA = "123";
+    private static final String NOME_COMPLETO = "Teste Usuario";
+    private static final String EMAIL = "teste@teste.com";
+    private static final String DOCUMENTO = "123.456.789-00";
+    private static final TipoUsuario TIPO_USUARIO = TipoUsuario.PF;
 
-    @Test
-    @DisplayName("Deve criar usuário com dados completos")
-    void deveCriarUsuarioComDadosCompletos() {
-        // Arrange
-        var usuarioDTO = criarUsuarioRequestDTO();
-        when(passwordEncoder.encode(any())).thenReturn(SENHA_ENCODED);
-        when(usuarioRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+    @Nested
+    @DisplayName("Testes de busca de usuário")
+    class BuscaUsuarioTests {
 
-        // Act
-        Usuario usuario = usuarioService.criar(usuarioDTO);
+        @Test
+        @DisplayName("Deve buscar usuário por ID com sucesso")
+        void deveBuscarUsuarioPorIdComSucesso() {
+            Usuario usuarioEsperado = criarUsuario();
+            when(usuarioRepository.findById(1L)).thenReturn(Optional.of(usuarioEsperado));
 
-        // Assert
-        assertAll("Verificação dos dados do usuário",
-                () -> assertEquals(usuarioDTO.getNomeCompleto(), usuario.getNomeCompleto()),
-                () -> assertEquals(usuarioDTO.getEmail(), usuario.getEmail()),
-                () -> assertEquals(usuarioDTO.getTipoUsuario(), usuario.getTipoUsuario()),
-                () -> assertEquals(usuarioDTO.getDocumento(), usuario.getDocumento()),
-                () -> assertNotNull(usuario.getCarteira(), "Carteira deve ser criada"),
-                () -> assertEquals(BigDecimal.ZERO, usuario.getCarteira().getSaldo())
-        );
+            Usuario usuarioEncontrado = usuarioService.buscarPorId(1L);
+
+            assertEquals(usuarioEsperado, usuarioEncontrado);
+        }
+
+        @Test
+        @DisplayName("Deve lançar exceção quando usuário não encontrado por ID")
+        void deveLancarExcecaoQuandoUsuarioNaoEncontradoPorId() {
+            when(usuarioRepository.findById(1L)).thenReturn(Optional.empty());
+
+            RemessaException exception = assertThrows(RemessaException.class,
+                    () -> usuarioService.buscarPorId(1L));
+
+            assertExcecaoUsuarioNaoEncontrado(exception);
+        }
+
+        @Test
+        @DisplayName("Deve buscar usuário por documento com sucesso")
+        void deveBuscarUsuarioPorDocumentoComSucesso() {
+            Usuario usuarioEsperado = criarUsuario();
+            when(usuarioRepository.findByDocumento(DOCUMENTO)).thenReturn(Optional.of(usuarioEsperado));
+
+            Usuario usuarioEncontrado = usuarioService.buscarPorDocumento(DOCUMENTO);
+
+            assertEquals(usuarioEsperado, usuarioEncontrado);
+        }
+
+        @Test
+        @DisplayName("Deve lançar exceção quando usuário não encontrado por documento")
+        void deveLancarExcecaoQuandoUsuarioNaoEncontradoPorDocumento() {
+            when(usuarioRepository.findByDocumento(DOCUMENTO)).thenReturn(Optional.empty());
+
+            RemessaException exception = assertThrows(RemessaException.class,
+                    () -> usuarioService.buscarPorDocumento(DOCUMENTO));
+
+            assertExcecaoUsuarioNaoEncontrado(exception);
+        }
     }
 
-    @Test
-    @DisplayName("Deve impedir criação de usuário com email duplicado")
-    void deveImpedirCriacaoUsuarioEmailDuplicado() {
-        // Arrange
-        var usuarioDTO = criarUsuarioRequestDTO();
-        when(usuarioRepository.existsByEmail(usuarioDTO.getEmail())).thenReturn(true);
+    @Nested
+    @DisplayName("Testes de alteração de senha")
+    class AlteracaoSenhaTests {
 
-        // Act & Assert
-        RemessaException exception = assertThrows(RemessaException.class,
-                () -> usuarioService.criar(usuarioDTO));
+        @Test
+        @DisplayName("Deve alterar senha com sucesso")
+        void deveAlterarSenhaComSucesso() {
+            Usuario usuario = criarUsuario();
+            when(usuarioRepository.findById(1L)).thenReturn(Optional.of(usuario));
+            when(passwordEncoder.matches(SENHA_VALIDA, SENHA_ENCODED)).thenReturn(true);
+            when(passwordEncoder.encode(SENHA_NOVA)).thenReturn("$2a$10$NOVOENCODEDPASSWORD");
 
-        assertAll("Verificação da exceção",
-                () -> assertEquals(RemessaErrorType.EMAIL_JA_CADASTRADO, exception.getErrorType()),
-                () -> assertTrue(exception.getDetail().contains(usuarioDTO.getEmail()))
-        );
-    }
+            usuarioService.alterarSenha(1L, SENHA_VALIDA, SENHA_NOVA);
 
-    @Test
-    @DisplayName("Deve impedir criação de usuário com documento duplicado")
-    void deveImpedirCriacaoUsuarioDocumentoDuplicado() {
-        // Arrange
-        var usuarioDTO = criarUsuarioRequestDTO();
-        when(usuarioRepository.existsByDocumento(usuarioDTO.getDocumento())).thenReturn(true);
+            verify(passwordEncoder).matches(SENHA_VALIDA, SENHA_ENCODED);
+            verify(passwordEncoder).encode(SENHA_NOVA);
+            verify(usuarioRepository).save(any(Usuario.class));
+        }
 
-        // Act & Assert
-        RemessaException exception = assertThrows(RemessaException.class,
-                () -> usuarioService.criar(usuarioDTO));
+        @Test
+        @DisplayName("Deve lançar exceção ao alterar senha com senha atual incorreta")
+        void deveLancarExcecaoAoAlterarSenhaComSenhaAtualIncorreta() {
+            Usuario usuario = criarUsuario();
+            when(usuarioRepository.findById(1L)).thenReturn(Optional.of(usuario));
+            when(passwordEncoder.matches(SENHA_VALIDA, SENHA_ENCODED)).thenReturn(false);
 
-        assertAll("Verificação da exceção",
-                () -> assertEquals(RemessaErrorType.DOCUMENTO_JA_CADASTRADO, exception.getErrorType()),
-                () -> assertTrue(exception.getDetail().contains(usuarioDTO.getDocumento()))
-        );
-    }
+            RemessaException exception = assertThrows(RemessaException.class,
+                    () -> usuarioService.alterarSenha(1L, SENHA_VALIDA, SENHA_NOVA));
 
-    @Test
-    @DisplayName("Deve criar usuário com senha criptografada")
-    void deveCriarUsuarioComSenhaCriptografada() {
-        // Arrange
-        var usuarioDTO = criarUsuarioRequestDTO();
-        when(passwordEncoder.encode(SENHA_VALIDA)).thenReturn(SENHA_ENCODED);
-        when(usuarioRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+            assertAll("Verificação da exceção",
+                    () -> assertEquals(RemessaErrorType.SENHA_INVALIDA, exception.getErrorType()),
+                    () -> assertEquals("Senha atual incorreta", exception.getDetail())
+            );
+        }
 
-        // Act
-        Usuario usuario = usuarioService.criar(usuarioDTO);
+        @Test
+        @DisplayName("Deve lançar exceção ao alterar senha de usuário inexistente")
+        void deveLancarExcecaoAoAlterarSenhaDeUsuarioInexistente() {
+            when(usuarioRepository.findById(1L)).thenReturn(Optional.empty());
 
-        // Assert
-        assertAll("Verificação da senha",
-                () -> assertNotEquals(SENHA_VALIDA, usuario.getSenha(),
-                        "A senha não deve ser armazenada em texto puro"),
-                () -> assertEquals(SENHA_ENCODED, usuario.getSenha(),
-                        "A senha deve estar criptografada"),
-                () -> verify(passwordEncoder).encode(SENHA_VALIDA)
-        );
-    }
+            RemessaException exception = assertThrows(RemessaException.class,
+                    () -> usuarioService.alterarSenha(1L, SENHA_VALIDA, SENHA_NOVA));
 
-    @Test
-    @DisplayName("Deve alterar senha com sucesso")
-    void deveAlterarSenhaComSucesso() {
-        // Arrange
-        var usuario = criarUsuario();
-        when(usuarioRepository.findById(1L)).thenReturn(Optional.of(usuario));
-        when(passwordEncoder.matches(SENHA_VALIDA, SENHA_ENCODED)).thenReturn(true);
-        when(passwordEncoder.encode(SENHA_NOVA)).thenReturn("$2a$10$NOVOENCODEDPASSWORD");
-
-        // Act
-        usuarioService.alterarSenha(1L, SENHA_VALIDA, SENHA_NOVA);
-
-        // Assert
-        verify(passwordEncoder).matches(SENHA_VALIDA, SENHA_ENCODED);
-        verify(passwordEncoder).encode(SENHA_NOVA);
-        verify(usuarioRepository).save(any(Usuario.class));
-    }
-
-    @Test
-    @DisplayName("Deve lançar exceção quando usuário não encontrado")
-    void deveLancarExcecaoQuandoUsuarioNaoEncontrado() {
-        when(usuarioRepository.findById(1L)).thenReturn(Optional.empty());
-
-        RemessaException exception = assertThrows(RemessaException.class,
-                () -> usuarioService.alterarSenha(1L, SENHA_VALIDA, SENHA_NOVA));
-
-        assertAll("Verificação da exceção",
-                () -> assertEquals(RemessaErrorType.USUARIO_NAO_ENCONTRADO, exception.getErrorType()),
-                () -> assertTrue(exception.getDetail().contains("1"))
-        );
-    }
-
-    @Test
-    @DisplayName("Deve lançar exceção ao tentar alterar senha com senha atual incorreta")
-    void deveLancarExcecaoAoAlterarSenhaComSenhaAtualIncorreta() {
-        // Arrange
-        var usuario = criarUsuario();
-        when(usuarioRepository.findById(1L)).thenReturn(Optional.of(usuario));
-        when(passwordEncoder.matches(SENHA_VALIDA, SENHA_ENCODED)).thenReturn(false);
-
-        // Act & Assert
-        RemessaException exception = assertThrows(RemessaException.class,
-                () -> usuarioService.alterarSenha(1L, SENHA_VALIDA, SENHA_NOVA));
-
-        assertAll("Verificação da exceção",
-                () -> assertEquals(RemessaErrorType.SENHA_INVALIDA, exception.getErrorType()),
-                () -> assertEquals("Senha atual incorreta", exception.getDetail())
-        );
-    }
-
-    private UsuarioRequestDTO criarUsuarioRequestDTO() {
-        return UsuarioRequestDTO.builder()
-                .nomeCompleto("Teste")
-                .email("teste@teste.com")
-                .senha(SENHA_VALIDA)
-                .tipoUsuario(TipoUsuario.PF)
-                .documento("123.456.789-00")
-                .build();
+            assertExcecaoUsuarioNaoEncontrado(exception);
+        }
     }
 
     private Usuario criarUsuario() {
         return Usuario.builder()
                 .id(1L)
-                .nomeCompleto("Teste")
-                .email("teste@teste.com")
+                .nomeCompleto(NOME_COMPLETO)
+                .email(EMAIL)
                 .senha(SENHA_ENCODED)
-                .tipoUsuario(TipoUsuario.PF)
-                .documento("123.456.789-00")
+                .tipoUsuario(TIPO_USUARIO)
+                .documento(DOCUMENTO)
                 .build();
+    }
+
+    private void assertExcecaoUsuarioNaoEncontrado(RemessaException exception) {
+        assertAll("Verificação da exceção de usuário não encontrado",
+                () -> assertEquals(RemessaErrorType.USUARIO_NAO_ENCONTRADO, exception.getErrorType()),
+                () -> assertNotNull(exception.getDetail())
+        );
     }
 }

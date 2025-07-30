@@ -1,13 +1,13 @@
 package com.guilherme.desafiointer.service;
 
 import com.guilherme.desafiointer.domain.Carteira;
+import com.guilherme.desafiointer.domain.TipoUsuario;
 import com.guilherme.desafiointer.domain.Usuario;
-import com.guilherme.desafiointer.dto.UsuarioRequestDTO;
-import com.guilherme.desafiointer.dto.UsuarioResponseDTO;
 import com.guilherme.desafiointer.exception.remessa.RemessaErrorType;
 import com.guilherme.desafiointer.exception.remessa.RemessaException;
 import com.guilherme.desafiointer.repository.UsuarioRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,28 +17,31 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 
+
 /**
  * Serviço responsável pelo gerenciamento de usuários do sistema.
- * Implementa operações CRUD e regras de negócio específicas para usuários.
+ * Implementa operações internas e regras de negócio específicas para usuários.
  */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class UsuarioService {
 
     private final UsuarioRepository usuarioRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Transactional
-    public Usuario criar(UsuarioRequestDTO dto) {
-        validarUsuarioUnico(dto);
+    public Usuario criarUsuario(String nomeCompleto, String email, String senha,
+                                TipoUsuario tipoUsuario, String documento) {
+        validarUsuarioUnico(email, documento);
 
         try {
             Usuario usuario = Usuario.builder()
-                    .nomeCompleto(dto.getNomeCompleto())
-                    .email(dto.getEmail())
-                    .senha(passwordEncoder.encode(dto.getSenha()))
-                    .tipoUsuario(dto.getTipoUsuario())
-                    .documento(dto.getDocumento())
+                    .nomeCompleto(nomeCompleto)
+                    .email(email)
+                    .senha(passwordEncoder.encode(senha))
+                    .tipoUsuario(tipoUsuario)
+                    .documento(documento)
                     .build();
 
             Carteira carteira = Carteira.builder()
@@ -49,6 +52,7 @@ public class UsuarioService {
             usuario.setCarteira(carteira);
             return usuarioRepository.save(usuario);
         } catch (Exception e) {
+            log.error("Erro ao criar usuário: {}", e.getMessage());
             throw RemessaException.processamento(
                     RemessaErrorType.ERRO_PROCESSAMENTO_USUARIO,
                     "Erro ao criar usuário",
@@ -57,18 +61,18 @@ public class UsuarioService {
         }
     }
 
-    private void validarUsuarioUnico(UsuarioRequestDTO dto) {
-        if (usuarioRepository.existsByDocumento(dto.getDocumento())) {
+    private void validarUsuarioUnico(String email, String documento) {
+        if (usuarioRepository.existsByDocumento(documento)) {
             throw RemessaException.validacao(
                     RemessaErrorType.DOCUMENTO_JA_CADASTRADO,
-                    "Documento já cadastrado: " + dto.getDocumento()
+                    "Documento já cadastrado: " + documento
             );
         }
 
-        if (usuarioRepository.existsByEmail(dto.getEmail())) {
+        if (usuarioRepository.existsByEmail(email)) {
             throw RemessaException.validacao(
                     RemessaErrorType.EMAIL_JA_CADASTRADO,
-                    "Email já cadastrado: " + dto.getEmail()
+                    "Email já cadastrado: " + email
             );
         }
     }
@@ -88,6 +92,7 @@ public class UsuarioService {
             usuario.setSenhaEncoded(passwordEncoder.encode(novaSenha));
             usuarioRepository.save(usuario);
         } catch (Exception e) {
+            log.error("Erro ao alterar senha: {}", e.getMessage());
             throw RemessaException.processamento(
                     RemessaErrorType.ERRO_PROCESSAMENTO_USUARIO,
                     "Erro ao alterar senha",
@@ -120,12 +125,11 @@ public class UsuarioService {
                 ));
     }
 
-    public List<UsuarioResponseDTO> listarTodos() {
+    public List<Usuario> listarTodos() {
         try {
-            return usuarioRepository.findAll().stream()
-                    .map(this::converterParaDTO)
-                    .collect(Collectors.toList());
+            return usuarioRepository.findAll();
         } catch (Exception e) {
+            log.error("Erro ao listar usuários: {}", e.getMessage());
             throw RemessaException.processamento(
                     RemessaErrorType.ERRO_PROCESSAMENTO_USUARIO,
                     "Erro ao listar usuários",
@@ -145,6 +149,7 @@ public class UsuarioService {
         try {
             usuarioRepository.deleteById(id);
         } catch (Exception e) {
+            log.error("Erro ao deletar usuário: {}", e.getMessage());
             throw RemessaException.processamento(
                     RemessaErrorType.ERRO_PROCESSAMENTO_USUARIO,
                     "Erro ao deletar usuário",
@@ -154,24 +159,25 @@ public class UsuarioService {
     }
 
     @Transactional
-    public UsuarioResponseDTO atualizar(Long id, UsuarioRequestDTO dto) {
-        Usuario usuario = buscarPorId(id);
-
-        validarAtualizacaoUsuario(usuario, dto);
+    public Usuario atualizarUsuario(Long id, String nomeCompleto, String email,
+                                    TipoUsuario tipoUsuario, String documento) {
+        Usuario usuarioExistente = buscarPorId(id);
+        validarAtualizacaoUsuario(usuarioExistente, email, documento);
 
         try {
-            usuario = Usuario.builder()
-                    .id(usuario.getId())
-                    .nomeCompleto(dto.getNomeCompleto())
-                    .email(dto.getEmail())
-                    .senha(usuario.getSenha())
-                    .tipoUsuario(dto.getTipoUsuario())
-                    .documento(dto.getDocumento())
-                    .carteira(usuario.getCarteira())
+            Usuario usuarioAtualizado = Usuario.builder()
+                    .id(usuarioExistente.getId())
+                    .nomeCompleto(nomeCompleto)
+                    .email(email)
+                    .senha(usuarioExistente.getSenha())
+                    .tipoUsuario(tipoUsuario)
+                    .documento(documento)
+                    .carteira(usuarioExistente.getCarteira())
                     .build();
 
-            return converterParaDTO(usuarioRepository.save(usuario));
+            return usuarioRepository.save(usuarioAtualizado);
         } catch (Exception e) {
+            log.error("Erro ao atualizar usuário: {}", e.getMessage());
             throw RemessaException.processamento(
                     RemessaErrorType.ERRO_PROCESSAMENTO_USUARIO,
                     "Erro ao atualizar usuário",
@@ -180,32 +186,21 @@ public class UsuarioService {
         }
     }
 
-    private void validarAtualizacaoUsuario(Usuario usuario, UsuarioRequestDTO dto) {
-        if (!usuario.getEmail().equals(dto.getEmail()) &&
-                usuarioRepository.existsByEmail(dto.getEmail())) {
+    private void validarAtualizacaoUsuario(Usuario usuario, String novoEmail, String novoDocumento) {
+        if (!usuario.getEmail().equals(novoEmail) &&
+                usuarioRepository.existsByEmail(novoEmail)) {
             throw RemessaException.validacao(
                     RemessaErrorType.EMAIL_JA_CADASTRADO,
-                    "Email já cadastrado para outro usuário: " + dto.getEmail()
+                    "Email já cadastrado para outro usuário: " + novoEmail
             );
         }
 
-        if (!usuario.getDocumento().equals(dto.getDocumento()) &&
-                usuarioRepository.existsByDocumento(dto.getDocumento())) {
+        if (!usuario.getDocumento().equals(novoDocumento) &&
+                usuarioRepository.existsByDocumento(novoDocumento)) {
             throw RemessaException.validacao(
                     RemessaErrorType.DOCUMENTO_JA_CADASTRADO,
-                    "Documento já cadastrado para outro usuário: " + dto.getDocumento()
+                    "Documento já cadastrado para outro usuário: " + novoDocumento
             );
         }
-    }
-
-    private UsuarioResponseDTO converterParaDTO(Usuario usuario) {
-        return UsuarioResponseDTO.builder()
-                .id(usuario.getId())
-                .nomeCompleto(usuario.getNomeCompleto())
-                .email(usuario.getEmail())
-                .tipoUsuario(usuario.getTipoUsuario())
-                .documento(usuario.getDocumento())
-                .saldo(usuario.getCarteira() != null ? usuario.getCarteira().getSaldo() : BigDecimal.ZERO)
-                .build();
     }
 }

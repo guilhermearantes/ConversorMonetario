@@ -3,7 +3,7 @@ package com.guilherme.desafiointer.service;
 import com.guilherme.desafiointer.config.TestConfig;
 import com.guilherme.desafiointer.config.constants.AppConstants;
 import com.guilherme.desafiointer.domain.*;
-import com.guilherme.desafiointer.dto.RemessaDTO;
+import com.guilherme.desafiointer.dto.remessa.RemessaRequestDTO;
 import com.guilherme.desafiointer.repository.CarteiraRepository;
 import com.guilherme.desafiointer.repository.RemessaRepository;
 import com.guilherme.desafiointer.repository.TransacaoDiariaRepository;
@@ -73,7 +73,7 @@ class RemessaProcessorCacheTest {
 
     private Usuario remetente;
     private Usuario destinatario;
-    private RemessaDTO remessaPadrao;
+    private RemessaRequestDTO remessaPadrao;
     private Carteira carteiraRemetente;
     private Carteira carteiraDestinatario;
 
@@ -186,13 +186,13 @@ class RemessaProcessorCacheTest {
         @DisplayName("Deve verificar presença dos caches após transação")
         void deveVerificarPresencaCachesAposTransacao() {
             // given
-            RemessaDTO remessaDTO = TestDataBuilder.criarRemessaPadrao(
+            RemessaRequestDTO remessaRequestDTO = TestDataBuilder.criarRemessaPadrao(
                     remetente.getId(),
                     destinatario.getId()
             );
 
             // when
-            remessaProcessor.processarRemessa(remessaDTO);
+            remessaProcessor.processarRemessa(remessaRequestDTO);
 
             // then
             assertAll(

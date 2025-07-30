@@ -3,7 +3,7 @@ package com.guilherme.desafiointer.service.interfaces;
 
 import com.guilherme.desafiointer.domain.Remessa;
 import com.guilherme.desafiointer.domain.Usuario;
-import com.guilherme.desafiointer.dto.RemessaDTO;
+import com.guilherme.desafiointer.dto.remessa.RemessaRequestDTO;
 import com.guilherme.desafiointer.exception.domain.LimiteDiarioExcedidoException;
 import com.guilherme.desafiointer.exception.domain.SaldoInsuficienteException;
 import com.guilherme.desafiointer.exception.remessa.RemessaException;
@@ -20,14 +20,14 @@ public interface RemessaServiceInterface {
     /**
      * Realiza uma remessa internacional entre usuários.
      *
-     * @param remessaDTO DTO contendo os dados da remessa
+     * @param remessaRequestDTO DTO contendo os dados da remessa
      * @return Remessa processada e salva
      * @throws IllegalArgumentException se dados obrigatórios estiverem ausentes
      * @throws SaldoInsuficienteException se o saldo for insuficiente
      * @throws RemessaException com RemessaErrorType.CARTEIRA_NAO_ENCONTRADA se alguma carteira não for encontrada
      * @throws LimiteDiarioExcedidoException se o limite diário for excedido
      */
-    Remessa realizarRemessa(@Valid RemessaDTO remessaDTO);
+    Remessa realizarRemessa(@Valid RemessaRequestDTO remessaRequestDTO);
 
     /**
      * Busca o histórico de transações de um usuário num período específico.
