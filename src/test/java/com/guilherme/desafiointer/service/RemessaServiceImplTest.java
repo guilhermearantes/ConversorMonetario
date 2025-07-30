@@ -3,17 +3,15 @@ package com.guilherme.desafiointer.service;
 import com.guilherme.desafiointer.config.TestConfig;
 import com.guilherme.desafiointer.config.constants.AppConstants;
 import com.guilherme.desafiointer.domain.Remessa;
-import com.guilherme.desafiointer.domain.TipoUsuario;
 import com.guilherme.desafiointer.domain.Usuario;
 import com.guilherme.desafiointer.dto.RemessaDTO;
 import com.guilherme.desafiointer.exception.domain.SaldoInsuficienteException;
-import com.guilherme.desafiointer.exception.remessa.RemessaException;  // Pacote correto
+import com.guilherme.desafiointer.exception.remessa.RemessaException;
 import com.guilherme.desafiointer.exception.remessa.RemessaErrorType;
 import com.guilherme.desafiointer.service.impl.RemessaServiceImpl;
 import com.guilherme.desafiointer.service.processor.RemessaProcessor;
 import com.guilherme.desafiointer.service.testdata.TestDataBuilder;
 import com.guilherme.desafiointer.service.validator.RemessaValidator;
-import lombok.experimental.UtilityClass;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -21,7 +19,6 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.cache.CacheManager;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.jdbc.Sql;
@@ -29,10 +26,10 @@ import org.springframework.data.domain.Pageable;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
-import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
+
 @SpringBootTest
 @ActiveProfiles("test")
 @Import(TestConfig.class)

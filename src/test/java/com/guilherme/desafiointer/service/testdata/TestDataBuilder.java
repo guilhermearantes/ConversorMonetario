@@ -1,6 +1,7 @@
 package com.guilherme.desafiointer.service.testdata;
 
 import com.guilherme.desafiointer.config.constants.AppConstants;
+import com.guilherme.desafiointer.domain.CotacaoHistorico;
 import com.guilherme.desafiointer.domain.Remessa;
 import com.guilherme.desafiointer.domain.TipoUsuario;
 import com.guilherme.desafiointer.domain.Usuario;
@@ -21,7 +22,7 @@ import java.util.List;
 @UtilityClass
 public class TestDataBuilder {
     // Constantes monetárias
-    public static final BigDecimal COTACAO_PADRAO = new BigDecimal("5.00");
+    public static final BigDecimal COTACAO_PADRAO = new BigDecimal("5.0000");
     public static final String MOEDA_PADRAO = "USD";
     public static final BigDecimal VALOR_REMESSA_PADRAO = new BigDecimal("100.00");
     public static final BigDecimal TAXA_PERCENTUAL_PF = new BigDecimal("0.02");
@@ -52,6 +53,22 @@ public class TestDataBuilder {
         value.setCotacaoCompra(COTACAO_PADRAO.toString());
         response.setValue(Collections.singletonList(value));
         return response;
+    }
+
+    public static CotacaoHistorico criarCotacaoHistorico(String moeda, BigDecimal valor, boolean isFimDeSemana) {
+        return criarCotacaoHistorico(moeda, valor, isFimDeSemana, LocalDateTime.now());
+    }
+
+    public static CotacaoHistorico criarCotacaoHistorico(String moeda, BigDecimal valor,
+                                                         boolean isFimDeSemana, LocalDateTime dataHora) {
+        return CotacaoHistorico.builder()
+                .id(1L)
+                .moeda(moeda)
+                .valor(valor)
+                .dataHora(dataHora)
+                .isFimDeSemana(isFimDeSemana)
+                .ultimaAtualizacao(LocalDateTime.now())
+                .build();
     }
 
 
