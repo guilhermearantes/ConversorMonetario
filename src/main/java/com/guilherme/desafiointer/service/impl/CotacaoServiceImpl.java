@@ -15,7 +15,6 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
-
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.DayOfWeek;
@@ -24,6 +23,9 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Optional;
 
+/**
+ * Serviço de cotações com suporte à cache e fallback.
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -42,6 +44,13 @@ public class CotacaoServiceImpl implements CotacaoServiceInterface {
     private final RestTemplate restTemplate;
     private final CotacaoHistoricoRepository cotacaoHistoricoRepository;
 
+    /**
+     * Obtém cotação atual da moeda com fallback para histórico.
+     *
+     * @param moeda Código da moeda (ex: USD)
+     * @return Valor da cotação
+     * @throws IllegalArgumentException se moeda não suportada
+     */
     @Override
     @Transactional
     @Cacheable(
@@ -52,7 +61,7 @@ public class CotacaoServiceImpl implements CotacaoServiceInterface {
     public BigDecimal obterCotacao(String moeda) {
         validarMoeda(moeda);
         LocalDateTime agora = LocalDateTime.now();
-        boolean isFimDeSemana = ehFimDeSemana(agora.toLocalDate());
+        boolean isFimDeSemana = isFimDeSemana(agora.toLocalDate());
 
         if (isFimDeSemana) {
             return obterUltimaCotacaoUtil(moeda);
@@ -78,11 +87,19 @@ public class CotacaoServiceImpl implements CotacaoServiceInterface {
         }
     }
 
+    /**
+     * Limpa cache de cotações.
+     * Útil para forçar atualização.
+     */
     @CacheEvict(allEntries = true)
     public void limparCache() {
         log.info("Cache de cotações limpo");
     }
 
+    /**
+     * Busca última cotação em dia útil.
+     * Fallback quando API indisponível.
+     */
     private BigDecimal obterUltimaCotacaoUtil(String moeda) {
         return cotacaoHistoricoRepository.findUltimaCotacaoUtil(moeda)
                 .map(CotacaoHistorico::getValor)
@@ -92,6 +109,10 @@ public class CotacaoServiceImpl implements CotacaoServiceInterface {
                 });
     }
 
+    /**
+     * Salva nova cotação no histórico.
+     * Registra data/hora e flag de fim de semana.
+     */
     private void salvarHistoricoCotacao(String moeda, BigDecimal valor,
                                         LocalDateTime dataHora, boolean isFimDeSemana) {
         try {
@@ -111,11 +132,18 @@ public class CotacaoServiceImpl implements CotacaoServiceInterface {
         }
     }
 
-    private boolean ehFimDeSemana(LocalDate data) {
+    /**
+     * Verifica se data é fim de semana.
+     */
+    private boolean isFimDeSemana(LocalDate data) {
         return data.getDayOfWeek() == DayOfWeek.SATURDAY ||
                 data.getDayOfWeek() == DayOfWeek.SUNDAY;
     }
 
+    /**
+     * Ajusta data para consulta em dia útil.
+     * Retrocede para sexta em fins de semana.
+     */
     private LocalDate obterDataConsultaValida() {
         LocalDate hoje = LocalDate.now();
         if (hoje.getDayOfWeek() == DayOfWeek.SATURDAY) {
@@ -126,11 +154,17 @@ public class CotacaoServiceImpl implements CotacaoServiceInterface {
         return hoje;
     }
 
+    /**
+     * Formata URL da API do BCB.
+     */
     private String construirUrl(LocalDate data) {
         String dataFormatada = data.format(DATE_FORMATTER);
         return BCB_API_BASE_URL + "?@dataCotacao='" + dataFormatada + "'&$top=1&$format=json";
     }
 
+    /**
+     * Processa resposta da API e extrai cotação.
+     */
     private BigDecimal processarResposta(PTAXResponse response) {
         return Optional.ofNullable(response)
                 .map(PTAXResponse::getValue)
@@ -141,6 +175,10 @@ public class CotacaoServiceImpl implements CotacaoServiceInterface {
                 .orElse(null);
     }
 
+    /**
+     * Valida se moeda é suportada.
+     * @throws IllegalArgumentException se inválida
+     */
     private void validarMoeda(String moeda) {
         if (moeda == null || !AppConstants.MOEDAS_SUPORTADAS.contains(moeda.toUpperCase())) {
             throw new IllegalArgumentException(
@@ -150,6 +188,10 @@ public class CotacaoServiceImpl implements CotacaoServiceInterface {
         }
     }
 
+    /**
+     * Retorna cotação padrão configurada.
+     * Último recurso de fallback.
+     */
     private BigDecimal getDefaultCotacao() {
         return new BigDecimal(defaultCotacaoStr)
                 .setScale(AppConstants.DECIMAL_SCALE, RoundingMode.HALF_UP);

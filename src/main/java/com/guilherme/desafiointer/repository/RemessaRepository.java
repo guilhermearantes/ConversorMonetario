@@ -35,6 +35,7 @@ public interface RemessaRepository extends JpaRepository<Remessa, Long> {
             Pageable pageable);
 
     /**
+     * FUNCIONALIDADE FUTURA
      * Calcula o total de remessas enviadas por um usuário num período.
      * Usa cache para evitar recalcular valores para períodos já consultados.
      *
@@ -52,6 +53,7 @@ public interface RemessaRepository extends JpaRepository<Remessa, Long> {
             @Param("fim") LocalDateTime fim);
 
     /**
+     * FUNCIONALIDADE FUTURA
      * Calcula o total de taxas cobradas de um usuário num período.
      * Usa cache para evitar recalcular valores já consultados.
      *

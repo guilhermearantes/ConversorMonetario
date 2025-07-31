@@ -1,18 +1,27 @@
 package com.guilherme.desafiointer.dto.remessa;
 
-
 import com.guilherme.desafiointer.domain.Remessa;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * DTO para respostas de remessa internacional
+ * DTO para respostas de remessa internacional.
+ *
+ * Transporta dados de saída após processamento bem-sucedido de
+ * transferências entre usuários, incluindo detalhes da conversão
+ * de moedas, taxas aplicadas e cotação utilizada.
+ *
+ * Contém informações completas da transação:
+ * - Identificadores da remessa e usuários
+ * - Valores originais e convertidos
+ * - Taxa aplicada e cotação utilizada
+ * - Timestamp da operação
  */
+
 @Getter
 @Builder
 @NoArgsConstructor

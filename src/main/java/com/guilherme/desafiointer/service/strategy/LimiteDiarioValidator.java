@@ -1,7 +1,6 @@
 package com.guilherme.desafiointer.service.strategy;
 
 import com.guilherme.desafiointer.domain.Usuario;
-
 import java.math.BigDecimal;
 
 public interface LimiteDiarioValidator {

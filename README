@@ -69,6 +69,19 @@ mvn test
 - Tratamento de erros com mensagens claras e status HTTP adequados
 - Operações totalmente transacionais
 
+## 🚀 Melhorias e Funcionalidades Adicionais
+
+Além dos requisitos básicos do desafio, implementamos algumas funcionalidades extras para demonstrar conhecimentos em Design Patterns e boas práticas:
+
+### Sistema de Taxas (Funcionalidade Extra)
+- **PF (Pessoa Física)**: 2% sobre o valor da remessa
+- **PJ (Pessoa Jurídica)**: 1% sobre o valor da remessa
+
+**Patterns Demonstrados:**
+- **Strategy Pattern**: Diferentes estratégias de cálculo de taxa por tipo de usuário
+- **Factory Pattern**: `StrategyFactory` para seleção automática da estratégia adequada
+- **Dependency Injection**: Integração transparente com Spring Framework
+
 ---
 
 ## 🔍 Decisões Técnicas e Arquiteturais

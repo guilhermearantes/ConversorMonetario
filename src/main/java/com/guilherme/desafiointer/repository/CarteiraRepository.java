@@ -9,7 +9,6 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.jpa.repository.QueryHints;
 import org.springframework.stereotype.Repository;
-
 import jakarta.persistence.QueryHint;
 import java.util.Optional;
 
@@ -33,7 +32,7 @@ public interface CarteiraRepository extends JpaRepository<Carteira, Long> {
 
     /**
      * Busca uma carteira por ID do usuário utilizando bloqueio pessimista para controle de concorrência.
-     * Este método é utilizado em operações que requerem consistência transacional, como transferências
+     * Este metodo é utilizado em operações que requerem consistência transacional, como transferências
      * e atualizações de saldo, evitando condições de corrida.
      *
      * @param usuarioId ID do usuário proprietário da carteira

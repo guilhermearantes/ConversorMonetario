@@ -23,6 +23,11 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import org.springframework.cache.annotation.Cacheable;
 
+/**
+ * Implementação do processador de remessas internacionais.
+ * Executa lógica de negócio transacional com controle de carteiras,
+ * validação de limites, conversão de moedas e cache inteligente.
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -36,6 +41,13 @@ public class RemessaProcessorImpl implements RemessaProcessor {
     private final TransacaoDiariaRepository transacaoDiariaRepository;
     private final StrategyFactory strategyFactory;
 
+    /**
+     * Processa remessa completa com lock de carteiras e transação atômica.
+     * Executa débito/crédito, validações e persistência em sequência segura.
+     *
+     * @param remessaRequestDTO dados da remessa
+     * @return Remessa persistida com dados calculados
+     */
     @Override
     public Remessa processarRemessa(RemessaRequestDTO remessaRequestDTO) {
         var dadosProcessamento = prepararDadosProcessamento(remessaRequestDTO);
@@ -44,6 +56,16 @@ public class RemessaProcessorImpl implements RemessaProcessor {
         return criarEPersistirRemessa(remessaRequestDTO, dadosProcessamento);
     }
 
+    /**
+     * Busca histórico paginado com cache automático.
+     * Chave de cache inclui usuário, período e página para precisão.
+     *
+     * @param usuario usuário alvo
+     * @param inicio data inicial
+     * @param fim data final
+     * @param pageable configuração de paginação
+     * @return página de remessas
+     */
     @Override
     @Cacheable(
             cacheNames = AppConstants.CACHE_HISTORICO,
@@ -54,6 +76,10 @@ public class RemessaProcessorImpl implements RemessaProcessor {
         return remessaRepository.buscarHistoricoTransacoes(usuario, inicio, fim, pageable);
     }
 
+    /**
+     * Record para dados calculados do processamento de remessa.
+     * Encapsula carteiras, valores, taxas e cotações em estrutura imutável.
+     */
     private record DadosProcessamentoRemessa(
             Carteira carteiraRemetente,
             Carteira carteiraDestinatario,
@@ -66,6 +92,10 @@ public class RemessaProcessorImpl implements RemessaProcessor {
             String moedaDestino     // 🆕 Parâmetro 9
     ) {}
 
+    /**
+     * Prepara todos os dados necessários para processamento da remessa.
+     * Obtém carteiras com lock, calcula valores e valida operação.
+     */
     private DadosProcessamentoRemessa prepararDadosProcessamento(RemessaRequestDTO remessaRequestDTO) {
         // Obter carteiras com lock pessimista
         Carteira carteiraRemetente = buscarCarteiraComLock(remessaRequestDTO.getUsuarioId());
@@ -134,6 +164,10 @@ public class RemessaProcessorImpl implements RemessaProcessor {
         }
     }
 
+    /**
+     * Executa débito/crédito nas carteiras e persiste alterações.
+     * Processa moedas origem/destino com valores corretos.
+     */
     private void processarTransacao(DadosProcessamentoRemessa dados) {
         log.debug("Processando transação: moedaOrigem={}, moedaDestino={}, valor={}, valorConvertido={}",
                 dados.moedaOrigem(), dados.moedaDestino(), dados.valorTotalDebito(), dados.valorConvertido());
@@ -153,6 +187,10 @@ public class RemessaProcessorImpl implements RemessaProcessor {
                 dados.valorTotalDebito().subtract(dados.taxa()));
     }
 
+    /**
+     * Valida e processa limite diário do usuario.
+     * Utiliza strategy pattern para diferentes tipos de usuario.
+     */
     private TransacaoDiaria processarLimiteDiario(Carteira carteira, BigDecimal valor) {
         var transacaoDiaria = buscarOuCriarTransacaoDiaria(carteira.getUsuario());
         strategyFactory.getLimiteValidator(carteira.getUsuario().getTipoUsuario())
@@ -160,20 +198,19 @@ public class RemessaProcessorImpl implements RemessaProcessor {
         return transacaoDiaria;
     }
 
-    private BigDecimal calcularTaxa(Carteira carteira, BigDecimal valor) {
-        return strategyFactory.getTaxaStrategy(carteira.getUsuario().getTipoUsuario())
-                .calcularTaxa(valor);
-    }
-
-    private BigDecimal calcularValorConvertido(BigDecimal valor, BigDecimal cotacao) {
-        return valor.divide(cotacao, SCALE_DIVISAO, RoundingMode.HALF_UP);
-    }
-
+    /**
+     * Atualiza transação diária acumulando valor processado.
+     * Persiste nova soma no repositório.
+     */
     private void atualizarTransacaoDiaria(TransacaoDiaria transacaoDiaria, BigDecimal valor) {
         transacaoDiaria.atualizarValorTotal(transacaoDiaria.getValorTotal().add(valor));
         transacaoDiariaRepository.save(transacaoDiaria);
     }
 
+    /**
+     * Cria e persiste entidade Remessa com dados calculados.
+     * Timestamp automático de criação.
+     */
     private Remessa criarEPersistirRemessa(RemessaRequestDTO dto, DadosProcessamentoRemessa dados) {
         var remessa = Remessa.builder()
                 .usuario(dados.carteiraRemetente().getUsuario())
@@ -189,6 +226,10 @@ public class RemessaProcessorImpl implements RemessaProcessor {
         return remessaRepository.save(remessa);
     }
 
+    /**
+     * Busca carteira com lock pessimista para evitar concorrência.
+     * Lança RemessaException se carteira não encontrada.
+     */
     private Carteira buscarCarteiraComLock(Long usuarioId) {
         return carteiraRepository.findByUsuarioIdWithPessimisticLock(usuarioId)
                 .orElseThrow(() -> RemessaException.negocio(
@@ -197,6 +238,10 @@ public class RemessaProcessorImpl implements RemessaProcessor {
                 ));
     }
 
+    /**
+     * Valida saldo suficiente na moeda especificada.
+     * Lança SaldoInsuficienteException se inadequado.
+     */
     private void validarSaldo(Carteira carteira, BigDecimal valor, String moeda) {
         BigDecimal saldoAtual;
 
@@ -217,6 +262,13 @@ public class RemessaProcessorImpl implements RemessaProcessor {
         }
     }
 
+    /**
+     * Busca ou cria transação diária com cache por usuário e data.
+     * Cache evita consultas repetitivas no mesmo dia.
+     *
+     * @param usuario usuário da transação
+     * @return TransacaoDiaria existente ou nova com valor zero
+     */
     @Cacheable(
             cacheNames = AppConstants.CACHE_TOTAIS,
             key = "'total_' + #usuario.id + '_' + T(java.time.LocalDate).now()"
@@ -230,6 +282,13 @@ public class RemessaProcessorImpl implements RemessaProcessor {
                         .build());
     }
 
+    /**
+     * Obtém cotação da moeda com cache por símbolo.
+     * Cache por moeda evita chamadas excessivas à API do Banco Central.
+     *
+     * @param moedaDestino código da moeda (USD, BRL)
+     * @return cotação válida ou exceção se inválida
+     */
     @Cacheable(
             cacheNames = AppConstants.CACHE_COTACOES,
             key = "#moedaDestino",
@@ -246,6 +305,10 @@ public class RemessaProcessorImpl implements RemessaProcessor {
         return cotacao;
     }
 
+    /**
+     * Limpa todos os caches após transação bem-sucedida.
+     * Garante consistência após alterações em dados relacionados.
+     */
     @CacheEvict(value = {
             AppConstants.CACHE_HISTORICO,
             AppConstants.CACHE_TOTAIS,

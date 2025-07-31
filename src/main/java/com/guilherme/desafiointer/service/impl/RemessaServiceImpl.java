@@ -27,6 +27,9 @@ import java.util.function.Supplier;
 
 /**
  * Implementação do serviço de remessas internacionais.
+ *
+ * Coordena transações de remessa com lock distribuído, cache inteligente
+ * e tratamento diferenciado de exceções por categoria.
  */
 @Service
 @Validated
@@ -38,6 +41,12 @@ public class RemessaServiceImpl implements RemessaServiceInterface {
     private final RemessaProcessor remessaProcessor;
     private final RemessaValidator remessaValidator;
 
+    /**
+     * Realiza remessa internacional com transação ACID e lock distribuído.
+     *
+     * @param remessaRequestDTO dados da remessa
+     * @return Remessa processada
+     */
     @Override
     @Transactional
     public Remessa realizarRemessa(@Valid RemessaRequestDTO remessaRequestDTO) {
@@ -47,6 +56,10 @@ public class RemessaServiceImpl implements RemessaServiceInterface {
         );
     }
 
+    /**
+     * Processa remessa com logging estruturado e tratamento de exceções.
+     * Categoriza erros em negócio, validação e processamento.
+     */
     private Remessa processarRemessaSegura(RemessaRequestDTO remessaRequestDTO) {
         log.info("Iniciando processamento de remessa: [usuarioId={}, destinatarioId={}, valor={}, moeda={}]",
                 remessaRequestDTO.getUsuarioId(),
@@ -97,6 +110,10 @@ public class RemessaServiceImpl implements RemessaServiceInterface {
         }
     }
 
+    /**
+     * Executa operação com lock distribuído baseado no ID do usuario.
+     * Previne transações concorrentes do mesmo usuario.
+     */
     private <T> T executarComLockDistribuido(Long usuarioId, Supplier<T> operacao) {
         String lockKey = "remessa:usuario:" + usuarioId;
         try {
@@ -119,6 +136,10 @@ public class RemessaServiceImpl implements RemessaServiceInterface {
         }
     }
 
+    /**
+     * Obtém lock distribuído usando chave do usuario.
+     * Implementação pendente para Redis/ZooKeeper.
+     */
     private boolean obterLockDistribuido(String lockKey) {
         try {
             // Implementação do lock distribuído
@@ -130,6 +151,10 @@ public class RemessaServiceImpl implements RemessaServiceInterface {
         }
     }
 
+    /**
+     * Libera lock distribuído de forma segura.
+     * Trata erros de liberação sem propagar exceções.
+     */
     private void liberarLockDistribuido(String lockKey) {
         try {
             // Implementação da liberação do lock distribuído
@@ -139,6 +164,10 @@ public class RemessaServiceImpl implements RemessaServiceInterface {
         }
     }
 
+    /**
+     * Valida dados da remessa delegando para RemessaValidator.
+     * Converte exceções genéricas para RemessaException tipadas.
+     */
     private void validarRemessa(RemessaRequestDTO remessaRequestDTO) {
         try {
             remessaValidator.validarDadosRemessa(remessaRequestDTO);
@@ -160,22 +189,35 @@ public class RemessaServiceImpl implements RemessaServiceInterface {
         }
     }
 
+    /**
+     * Processa remessa delegando para RemessaProcessor.
+     * Mantém exceções de negócio e converte erros inesperados.
+     */
     private Remessa processarRemessa(RemessaRequestDTO remessaRequestDTO) {
         try {
             return remessaProcessor.processarRemessa(remessaRequestDTO);
-        } catch (LimiteDiarioExcedidoException | SaldoInsuficienteException e) {
-            throw e;
-        } catch (RemessaException e) {
+        } catch (LimiteDiarioExcedidoException | SaldoInsuficienteException | RemessaException e) {
             throw e;
         } catch (Exception e) {
+            log.error("Erro inesperado ao processar remessa: {}", remessaRequestDTO, e);
             throw RemessaException.processamento(
                     RemessaErrorType.ERRO_PROCESSAMENTO,
-                    "Erro ao processar remessa",
+                    "Erro ao processar remessa: " + e.getMessage(),
                     e
             );
         }
     }
 
+    /**
+     * Busca histórico paginado com cache automático.
+     * Valida período, paginação e delega para processor.
+     *
+     * @param usuario usuário alvo
+     * @param inicio data inicial
+     * @param fim data final
+     * @param pageable configuração de paginação
+     * @return página de remessas
+     */
     @Override
     @Cacheable(key = "#usuario.id + '_' + #inicio + '_' + #fim + '_' + #pageable.pageNumber")
     public Page<Remessa> buscarHistoricoTransacoes(
@@ -210,6 +252,10 @@ public class RemessaServiceImpl implements RemessaServiceInterface {
         }
     }
 
+    /**
+     * Valida parâmetros de busca histórica.
+     * Verifica período, paginação e delega validações específicas.
+     */
     private void validarParametrosBusca(Usuario usuario, LocalDateTime inicio,
                                         LocalDateTime fim, Pageable pageable) {
         try {
@@ -224,6 +270,10 @@ public class RemessaServiceImpl implements RemessaServiceInterface {
         }
     }
 
+    /**
+     * Valida período de consulta histórica.
+     * Verifica ordem das datas e limite máximo de dias.
+     */
     private void validarPeriodoConsulta(LocalDateTime inicio, LocalDateTime fim) {
         if (inicio.isAfter(fim)) {
             throw RemessaException.validacao(
@@ -242,6 +292,10 @@ public class RemessaServiceImpl implements RemessaServiceInterface {
         }
     }
 
+    /**
+     * Valida parâmetros de paginação.
+     * Verifica tamanho máximo de página configurado.
+     */
     private void validarPaginacao(Pageable pageable) {
         if (pageable.getPageSize() > AppConstants.TAMANHO_MAXIMO_PAGINA) {
             throw RemessaException.validacao(

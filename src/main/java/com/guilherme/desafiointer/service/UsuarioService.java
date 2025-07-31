@@ -26,6 +26,10 @@ public class UsuarioService {
     private final UsuarioRepository usuarioRepository;
     private final PasswordEncoder passwordEncoder;
 
+    /**
+     * Cria usuário completo com carteira inicializada.
+     * Valida unicidade, criptografa senha e configura carteira zerada.
+     */
     @Transactional
     public Usuario criarUsuario(String nomeCompleto, String email, String senha,
                                 TipoUsuario tipoUsuario, String documento) {
@@ -80,6 +84,10 @@ public class UsuarioService {
         }
     }
 
+    /**
+     * Altera senha com validação de senha atual.
+     * Verifica autenticidade antes de permitir alteração.
+     */
     @Transactional
     public void alterarSenha(Long userId, String senhaAtual, String novaSenha) {
         Usuario usuario = buscarPorId(userId);
@@ -104,6 +112,9 @@ public class UsuarioService {
         }
     }
 
+    /**
+     * Busca usuario por ID com exception se não encontrado.
+     */
     public Usuario buscarPorId(Long id) {
         return usuarioRepository.findById(id)
                 .orElseThrow(() -> RemessaException.negocio(
@@ -112,6 +123,9 @@ public class UsuarioService {
                 ));
     }
 
+    /**
+     * Busca usuario por documento com exception se não encontrado.
+     */
     public Usuario buscarPorDocumento(String documento) {
         return usuarioRepository.findByDocumento(documento)
                 .orElseThrow(() -> RemessaException.negocio(
@@ -120,6 +134,37 @@ public class UsuarioService {
                 ));
     }
 
+    /**
+     * Valida unicidade condicional em atualizações de usuário.
+     * Só verifica conflitos se email/documento realmente mudaram.
+     *
+     * @param usuario usuário atual
+     * @param novoEmail novo email (pode ser igual ao atual)
+     * @param novoDocumento novo documento (pode ser igual ao atual)
+     * @throws RemessaException se email/documento já existe para outro usuário
+     */
+    private void validarAtualizacaoUsuario(Usuario usuario, String novoEmail, String novoDocumento) {
+        if (!usuario.getEmail().equals(novoEmail) &&
+                usuarioRepository.existsByEmail(novoEmail)) {
+            throw RemessaException.validacao(
+                    RemessaErrorType.EMAIL_JA_CADASTRADO,
+                    "Email já cadastrado para outro usuário: " + novoEmail
+            );
+        }
+
+        if (!usuario.getDocumento().equals(novoDocumento) &&
+                usuarioRepository.existsByDocumento(novoDocumento)) {
+            throw RemessaException.validacao(
+                    RemessaErrorType.DOCUMENTO_JA_CADASTRADO,
+                    "Documento já cadastrado para outro usuário: " + novoDocumento
+            );
+        }
+    }
+
+    /**
+     * FUNCIONALIDADE FUTURA
+     * Busca usuario por email com exception se não encontrado.
+     */
     public Usuario buscarPorEmail(String email) {
         return usuarioRepository.findByEmail(email)
                 .orElseThrow(() -> RemessaException.negocio(
@@ -128,6 +173,10 @@ public class UsuarioService {
                 ));
     }
 
+    /**
+     * FUNCIONALIDADE FUTURA
+     * Lista todos os usuários com tratamento de erro.
+     */
     public List<Usuario> listarTodos() {
         try {
             return usuarioRepository.findAll();
@@ -141,26 +190,11 @@ public class UsuarioService {
         }
     }
 
-    @Transactional
-    public void deletar(Long id) {
-        if (!usuarioRepository.existsById(id)) {
-            throw RemessaException.negocio(
-                    RemessaErrorType.USUARIO_NAO_ENCONTRADO,
-                    "Usuário não encontrado com ID: " + id
-            );
-        }
-        try {
-            usuarioRepository.deleteById(id);
-        } catch (Exception e) {
-            log.error("Erro ao deletar usuário: {}", e.getMessage());
-            throw RemessaException.processamento(
-                    RemessaErrorType.ERRO_PROCESSAMENTO_USUARIO,
-                    "Erro ao deletar usuário",
-                    e
-            );
-        }
-    }
-
+    /**
+     * FUNCIONALIDADE FUTURA
+     * Atualiza dados do usuário preservando senha e carteira.
+     * Valida unicidade apenas para campos alterados.
+     */
     @Transactional
     public Usuario atualizarUsuario(Long id, String nomeCompleto, String email,
                                     TipoUsuario tipoUsuario, String documento) {
@@ -185,24 +219,6 @@ public class UsuarioService {
                     RemessaErrorType.ERRO_PROCESSAMENTO_USUARIO,
                     "Erro ao atualizar usuário",
                     e
-            );
-        }
-    }
-
-    private void validarAtualizacaoUsuario(Usuario usuario, String novoEmail, String novoDocumento) {
-        if (!usuario.getEmail().equals(novoEmail) &&
-                usuarioRepository.existsByEmail(novoEmail)) {
-            throw RemessaException.validacao(
-                    RemessaErrorType.EMAIL_JA_CADASTRADO,
-                    "Email já cadastrado para outro usuário: " + novoEmail
-            );
-        }
-
-        if (!usuario.getDocumento().equals(novoDocumento) &&
-                usuarioRepository.existsByDocumento(novoDocumento)) {
-            throw RemessaException.validacao(
-                    RemessaErrorType.DOCUMENTO_JA_CADASTRADO,
-                    "Documento já cadastrado para outro usuário: " + novoDocumento
             );
         }
     }

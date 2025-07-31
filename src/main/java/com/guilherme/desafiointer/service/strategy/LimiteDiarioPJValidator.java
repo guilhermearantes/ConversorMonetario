@@ -4,7 +4,6 @@ import com.guilherme.desafiointer.config.constants.AppConstants;
 import com.guilherme.desafiointer.domain.Usuario;
 import com.guilherme.desafiointer.exception.domain.LimiteDiarioExcedidoException;
 import org.springframework.stereotype.Component;
-
 import java.math.BigDecimal;
 
 @Component
