@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.function.Supplier;
 
 /**
  * Implementação do serviço de remessas internacionais.
@@ -40,27 +41,101 @@ public class RemessaServiceImpl implements RemessaServiceInterface {
     @Override
     @Transactional
     public Remessa realizarRemessa(@Valid RemessaRequestDTO remessaRequestDTO) {
-        log.info("Iniciando processamento de remessa: [usuarioId={}, valor={}, moeda={}]",
+        return executarComLockDistribuido(
                 remessaRequestDTO.getUsuarioId(),
+                () -> processarRemessaSegura(remessaRequestDTO)
+        );
+    }
+
+    private Remessa processarRemessaSegura(RemessaRequestDTO remessaRequestDTO) {
+        log.info("Iniciando processamento de remessa: [usuarioId={}, destinatarioId={}, valor={}, moeda={}]",
+                remessaRequestDTO.getUsuarioId(),
+                remessaRequestDTO.getDestinatarioId(),
                 remessaRequestDTO.getValor(),
                 remessaRequestDTO.getMoedaDestino());
 
-        validarRemessa(remessaRequestDTO);
-
         try {
+            validarRemessa(remessaRequestDTO);
             Remessa remessa = processarRemessa(remessaRequestDTO);
-            log.info("Remessa processada com sucesso: [id={}]", remessa.getId());
+
+            log.info("Remessa processada com sucesso: [id={}, usuarioId={}, valor={}, valorConvertido={}]",
+                    remessa.getId(),
+                    remessa.getUsuario().getId(),
+                    remessa.getValor(),
+                    remessa.getValorConvertido());
+
             return remessa;
-        } catch (LimiteDiarioExcedidoException | SaldoInsuficienteException | RemessaException e) {
-            log.error("Erro de regra de negócio ao processar remessa: {}", e.getClass().getSimpleName());
+
+        } catch (LimiteDiarioExcedidoException | SaldoInsuficienteException e) {
+            log.warn("Erro de regra de negócio ao processar remessa: [tipo={}, usuarioId={}, valor={}] - {}",
+                    e.getClass().getSimpleName(),
+                    remessaRequestDTO.getUsuarioId(),
+                    remessaRequestDTO.getValor(),
+                    e.getMessage());
             throw e;
+
+        } catch (RemessaException e) {
+            log.error("Erro específico ao processar remessa: [tipo={}, usuarioId={}, errorType={}] - {}",
+                    e.getClass().getSimpleName(),
+                    remessaRequestDTO.getUsuarioId(),
+                    e.getErrorType(),
+                    e.getMessage());
+            throw e;
+
         } catch (Exception e) {
-            log.error("Erro no processamento da remessa: {}", e.getMessage(), e);
+            log.error("Erro inesperado ao processar remessa: [usuarioId={}, valor={}, moeda={}]",
+                    remessaRequestDTO.getUsuarioId(),
+                    remessaRequestDTO.getValor(),
+                    remessaRequestDTO.getMoedaDestino(),
+                    e);
+
             throw RemessaException.processamento(
                     RemessaErrorType.ERRO_PROCESSAMENTO,
-                    "Erro ao processar remessa",
+                    "Erro ao processar remessa: " + e.getMessage(),
                     e
             );
+        }
+    }
+
+    private <T> T executarComLockDistribuido(Long usuarioId, Supplier<T> operacao) {
+        String lockKey = "remessa:usuario:" + usuarioId;
+        try {
+            if (!obterLockDistribuido(lockKey)) {
+                throw RemessaException.negocio(
+                        RemessaErrorType.OPERACAO_EM_ANDAMENTO,
+                        "Já existe uma operação em andamento para este usuário"
+                );
+            }
+
+            try {
+                return operacao.get();
+            } finally {
+                liberarLockDistribuido(lockKey);
+            }
+
+        } catch (Exception e) {
+            log.error("Erro ao executar operação com lock distribuído: [usuarioId={}]", usuarioId, e);
+            throw e;
+        }
+    }
+
+    private boolean obterLockDistribuido(String lockKey) {
+        try {
+            // Implementação do lock distribuído
+            // Pode usar Redis, ZooKeeper, ou outra solução
+            return true; // Implementar lógica real
+        } catch (Exception e) {
+            log.error("Erro ao obter lock distribuído: {}", lockKey, e);
+            return false;
+        }
+    }
+
+    private void liberarLockDistribuido(String lockKey) {
+        try {
+            // Implementação da liberação do lock distribuído
+            log.debug("Lock distribuído liberado: {}", lockKey);
+        } catch (Exception e) {
+            log.error("Erro ao liberar lock distribuído: {}", lockKey, e);
         }
     }
 

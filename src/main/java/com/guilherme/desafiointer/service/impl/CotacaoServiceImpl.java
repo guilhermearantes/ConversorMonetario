@@ -107,6 +107,7 @@ public class CotacaoServiceImpl implements CotacaoServiceInterface {
             log.debug("Cotação salva no histórico: {}", historico);
         } catch (Exception e) {
             log.error("Erro ao salvar histórico de cotação: {}", e.getMessage());
+            throw new RuntimeException("Falha ao salvar histórico de cotação", e);
         }
     }
 

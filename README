@@ -1,0 +1,103 @@
+# 💸 Desafio Java – Banco Inter
+
+Este projeto implementa um serviço de remessa entre usuários Pessoa Física (PF) e Pessoa Jurídica (PJ), com conversão automática de Real para Dólar e controle de limites diários por tipo de usuário.
+
+---
+
+## 📦 Tecnologias Utilizadas
+
+- Java 17
+- Spring Boot 3.x
+- Spring Data JPA
+- Jakarta Bean Validation
+- H2 Database (Banco de dados em memória)
+- Lombok
+- Maven
+- Docker
+- Kubernetes
+
+---
+
+## 🚀 Como Compilar e Executar a Aplicação
+
+### Pré-requisitos
+
+- Java 17+
+- Maven 3.8+
+- (Opcional) Docker
+
+### Passo a Passo
+
+```bash
+git clone https://github.com/seu-usuario/seu-repositorio.git
+cd seu-repositorio
+mvn clean install
+mvn spring-boot:run
+```
+
+A aplicação estará disponível em:
+
+- API: `http://localhost:8080`
+
+### Console H2 (opcional):
+
+- URL: `http://localhost:8080/h2-console`
+- JDBC URL: `jdbc:h2:mem:remessa-db`
+- Usuário: `sa`
+- Senha: *(em branco)*
+
+---
+
+## 🧪 Como Executar os Testes Unitários
+
+```bash
+mvn test
+```
+
+---
+
+## 📄 Funcionalidades Principais
+
+- Cadastro de usuários PF e PJ com validações:
+  - E-mail, CPF e CNPJ únicos
+- Carteiras com saldo em BRL e USD
+- Remessa entre usuários:
+  - Conversão de BRL para USD com cotação oficial via Banco Central
+  - Verificação de limites diários (10 mil para PF, 50 mil para PJ)
+  - Transferência com rollback total em caso de erro
+  - Uso da última cotação disponível em finais de semana e feriados
+- Tratamento de erros com mensagens claras e status HTTP adequados
+- Operações totalmente transacionais
+
+---
+
+## 🔍 Decisões Técnicas e Arquiteturais
+
+### Arquitetura e Design
+- O projeto foi estruturado seguindo uma arquitetura em camadas clara (Controller -> Service -> Repository), facilitando a manutenção e testabilidade
+- Utilizamos DTOs para separar a camada de API da camada de domínio, evitando exposição desnecessária de detalhes de implementação
+- A escolha do Spring Boot foi motivada pela necessidade de criar uma API RESTful robusta com rápido desenvolvimento
+- Implementamos o padrão Builder extensivamente (via Lombok) para facilitar a criação de objetos, especialmente útil nos testes
+
+### Banco de Dados
+- Optamos pelo H2 por ser um banco em memória ideal para testes e desenvolvimento, além de não exigir configuração adicional para avaliação do desafio
+- As entidades foram modeladas pensando em transações e histórico (ex: CotacaoHistorico para manter registro de cotações)
+
+### Tratamento de Regras de Negócio
+- Implementamos o controle de limites diários (10k PF/50k PJ) utilizando uma tabela específica de transações diárias
+- A lógica de cotação foi desenvolvida com fallback para finais de semana, consultando a última cotação útil disponível
+- Todas as operações de remessa são transacionais (com @Transactional) garantindo atomicidade
+
+### Testes
+- Criamos uma hierarquia de testes com TestBase compartilhando configurações comuns
+- Utilizamos um TestDataBuilder para facilitar a criação de dados de teste
+- Os testes de integração utilizam um contexto real do Spring, garantindo que todas as camadas funcionem em conjunto
+
+### Container e Kubernetes
+- A aplicação foi containerizada usando Docker com uma imagem base do OpenJDK 17
+- No Kubernetes, implementamos:
+  - Alta disponibilidade com 2 réplicas
+  - Rolling updates para deploys sem downtime
+  - ConfigMap para externalização de configurações
+
+---

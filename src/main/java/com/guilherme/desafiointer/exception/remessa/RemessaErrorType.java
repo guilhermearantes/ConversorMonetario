@@ -24,6 +24,9 @@ public enum RemessaErrorType {
     LIMITE_DIARIO_EXCEDIDO("Limite diário de transações excedido", HttpStatus.UNPROCESSABLE_ENTITY),
     CARTEIRA_NAO_ENCONTRADA("Carteira não encontrada", HttpStatus.NOT_FOUND),
 
+    // Erros de Concorrência
+    OPERACAO_EM_ANDAMENTO("Operação em andamento para este usuário", HttpStatus.CONFLICT),
+
     // Erros de Integração Externa
     ERRO_COTACAO("Erro ao obter cotação da moeda", HttpStatus.SERVICE_UNAVAILABLE),
 
