@@ -11,10 +11,8 @@ import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabas
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
 import org.springframework.test.context.TestPropertySource;
-
 import java.math.BigDecimal;
 import java.util.Optional;
-
 import static org.junit.jupiter.api.Assertions.*;
 
 @DataJpaTest
@@ -46,7 +44,8 @@ class CarteiraRepositoryTest {
                     "João Silva",
                     "joao@email.com",
                     CPF_VALIDO,
-                    new BigDecimal("1000.00")
+                    new BigDecimal("1000.00"),
+                    new BigDecimal("500.00")
             );
             entityManager.flush();
             entityManager.clear();
@@ -58,7 +57,8 @@ class CarteiraRepositoryTest {
             assertTrue(carteira.isPresent());
             assertAll("Verificações da carteira",
                     () -> assertNotNull(carteira.get()),
-                    () -> assertEquals(new BigDecimal("1000.00"), carteira.get().getSaldo()),
+                    () -> assertEquals(new BigDecimal("1000.00"), carteira.get().getSaldoBRL()),
+                    () -> assertEquals(new BigDecimal("500.00"), carteira.get().getSaldoUSD()),
                     () -> assertEquals(usuario.getId(), carteira.get().getUsuario().getId())
             );
         }
@@ -81,7 +81,8 @@ class CarteiraRepositoryTest {
                     "João Silva",
                     "joao@email.com",
                     CPF_VALIDO,
-                    new BigDecimal("1000.00")
+                    new BigDecimal("1000.00"),
+                    new BigDecimal("500.00")
             );
             entityManager.flush();
             entityManager.clear();
@@ -93,7 +94,8 @@ class CarteiraRepositoryTest {
             assertTrue(carteira.isPresent());
             assertAll("Verificações da carteira com lock",
                     () -> assertNotNull(carteira.get()),
-                    () -> assertEquals(new BigDecimal("1000.00"), carteira.get().getSaldo()),
+                    () -> assertEquals(new BigDecimal("1000.00"), carteira.get().getSaldoBRL()),
+                    () -> assertEquals(new BigDecimal("500.00"), carteira.get().getSaldoUSD()),
                     () -> assertEquals(usuario.getId(), carteira.get().getUsuario().getId())
             );
         }
@@ -104,18 +106,19 @@ class CarteiraRepositoryTest {
     class OperacoesFinanceirasTests {
 
         @Test
-        @DisplayName("Deve atualizar saldo da carteira")
-        void deveAtualizarSaldoDaCarteira() {
+        @DisplayName("Deve debitar saldo BRL da carteira")
+        void deveDebitarSaldoBRLDaCarteira() {
             // Arrange
             Usuario usuario = criarUsuarioPF(
                     "João Silva",
                     "joao@email.com",
                     CPF_VALIDO,
-                    new BigDecimal("1000.00")
+                    new BigDecimal("1000.00"),
+                    new BigDecimal("500.00")
             );
 
             Carteira carteira = usuario.getCarteira();
-            carteira.debitar(new BigDecimal("500.00"));
+            carteira.debitar(new BigDecimal("500.00"), "BRL");
 
             // Act
             carteiraRepository.save(carteira);
@@ -124,11 +127,87 @@ class CarteiraRepositoryTest {
 
             // Assert
             Carteira carteiraAtualizada = carteiraRepository.findByUsuarioId(usuario.getId()).get();
-            assertEquals(new BigDecimal("500.00"), carteiraAtualizada.getSaldo());
+            assertEquals(new BigDecimal("500.00"), carteiraAtualizada.getSaldoBRL());
+        }
+
+        @Test
+        @DisplayName("Deve debitar saldo USD da carteira")
+        void deveDebitarSaldoUSDDaCarteira() {
+            // Arrange
+            Usuario usuario = criarUsuarioPF(
+                    "João Silva",
+                    "joao@email.com",
+                    CPF_VALIDO,
+                    new BigDecimal("1000.00"),
+                    new BigDecimal("500.00")
+            );
+
+            Carteira carteira = usuario.getCarteira();
+            carteira.debitar(new BigDecimal("200.00"), "USD");
+
+            // Act
+            carteiraRepository.save(carteira);
+            entityManager.flush();
+            entityManager.clear();
+
+            // Assert
+            Carteira carteiraAtualizada = carteiraRepository.findByUsuarioId(usuario.getId()).get();
+            assertEquals(new BigDecimal("300.00"), carteiraAtualizada.getSaldoUSD());
+        }
+
+        @Test
+        @DisplayName("Deve creditar saldo BRL na carteira")
+        void deveCreditarSaldoBRLNaCarteira() {
+            // Arrange
+            Usuario usuario = criarUsuarioPF(
+                    "João Silva",
+                    "joao@email.com",
+                    CPF_VALIDO,
+                    new BigDecimal("1000.00"),
+                    new BigDecimal("500.00")
+            );
+
+            Carteira carteira = usuario.getCarteira();
+            carteira.creditar(new BigDecimal("200.00"), "BRL");
+
+            // Act
+            carteiraRepository.save(carteira);
+            entityManager.flush();
+            entityManager.clear();
+
+            // Assert
+            Carteira carteiraAtualizada = carteiraRepository.findByUsuarioId(usuario.getId()).get();
+            assertEquals(new BigDecimal("1200.00"), carteiraAtualizada.getSaldoBRL());
+        }
+
+        @Test
+        @DisplayName("Deve creditar saldo USD na carteira")
+        void deveCreditarSaldoUSDNaCarteira() {
+            // Arrange
+            Usuario usuario = criarUsuarioPF(
+                    "João Silva",
+                    "joao@email.com",
+                    CPF_VALIDO,
+                    new BigDecimal("1000.00"),
+                    new BigDecimal("500.00")
+            );
+
+            Carteira carteira = usuario.getCarteira();
+            carteira.creditar(new BigDecimal("100.00"), "USD");
+
+            // Act
+            carteiraRepository.save(carteira);
+            entityManager.flush();
+            entityManager.clear();
+
+            // Assert
+            Carteira carteiraAtualizada = carteiraRepository.findByUsuarioId(usuario.getId()).get();
+            assertEquals(new BigDecimal("600.00"), carteiraAtualizada.getSaldoUSD());
         }
     }
 
-    private Usuario criarUsuarioPF(String nome, String email, String documento, BigDecimal saldoInicial) {
+    private Usuario criarUsuarioPF(String nome, String email, String documento,
+                                   BigDecimal saldoInicialBRL, BigDecimal saldoInicialUSD) {
         Usuario usuario = Usuario.builder()
                 .nomeCompleto(nome)
                 .email(email)
@@ -140,7 +219,8 @@ class CarteiraRepositoryTest {
         entityManager.persist(usuario);
 
         Carteira carteira = Carteira.builder()
-                .saldo(saldoInicial)
+                .saldoBRL(saldoInicialBRL)
+                .saldoUSD(saldoInicialUSD)
                 .usuario(usuario)
                 .build();
 

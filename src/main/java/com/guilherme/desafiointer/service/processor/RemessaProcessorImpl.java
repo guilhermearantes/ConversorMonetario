@@ -12,6 +12,7 @@ import com.guilherme.desafiointer.repository.TransacaoDiariaRepository;
 import com.guilherme.desafiointer.service.interfaces.CotacaoServiceInterface;
 import com.guilherme.desafiointer.service.strategy.StrategyFactory;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -22,6 +23,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import org.springframework.cache.annotation.Cacheable;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class RemessaProcessorImpl implements RemessaProcessor {
@@ -59,33 +61,94 @@ public class RemessaProcessorImpl implements RemessaProcessor {
             BigDecimal taxa,
             BigDecimal valorTotalDebito,
             BigDecimal cotacao,
-            BigDecimal valorConvertido
+            BigDecimal valorConvertido,
+            String moedaOrigem,      // 🆕 Parâmetro 8
+            String moedaDestino     // 🆕 Parâmetro 9
     ) {}
 
     private DadosProcessamentoRemessa prepararDadosProcessamento(RemessaRequestDTO remessaRequestDTO) {
-        var carteiraRemetente = buscarCarteiraComLock(remessaRequestDTO.getUsuarioId());
-        var carteiraDestinatario = buscarCarteiraComLock(remessaRequestDTO.getDestinatarioId());
-        var transacaoDiaria = processarLimiteDiario(carteiraRemetente, remessaRequestDTO.getValor());
-        var taxa = calcularTaxa(carteiraRemetente, remessaRequestDTO.getValor());
-        var valorTotalDebito = remessaRequestDTO.getValor().add(taxa);
+        // Obter carteiras com lock pessimista
+        Carteira carteiraRemetente = buscarCarteiraComLock(remessaRequestDTO.getUsuarioId());
+        Carteira carteiraDestinatario = buscarCarteiraComLock(remessaRequestDTO.getDestinatarioId());
 
-        validarSaldo(carteiraRemetente, valorTotalDebito);
+        // Determinar moedas de origem e destino
+        String moedaDestino = remessaRequestDTO.getMoedaDestino().toUpperCase();
+        String moedaOrigem = determinarMoedaOrigem(moedaDestino);
 
-        var cotacao = obterCotacao(remessaRequestDTO.getMoedaDestino());
-        var valorConvertido = calcularValorConvertido(remessaRequestDTO.getValor(), cotacao);
+        log.debug("Preparando dados: moedaOrigem={}, moedaDestino={}, valor={}",
+                moedaOrigem, moedaDestino, remessaRequestDTO.getValor());
+
+        // Obter cotação
+        BigDecimal cotacao = obterCotacao(moedaDestino);
+
+        // Calcular taxa baseada no valor na moeda de origem
+        BigDecimal taxa = strategyFactory.getTaxaStrategy(carteiraRemetente.getUsuario().getTipoUsuario())
+                .calcularTaxa(remessaRequestDTO.getValor());
+
+        // ✅ CORREÇÃO PRINCIPAL: Calcular valores baseado na conversão CORRETA
+        BigDecimal valorConvertido;
+        if ("USD".equalsIgnoreCase(moedaDestino)) {
+            // BRL → USD: divide pela cotação (valor diminui)
+            valorConvertido = remessaRequestDTO.getValor().divide(cotacao, 2, RoundingMode.HALF_UP);
+            log.debug("Conversão BRL→USD: {} ÷ {} = {}", remessaRequestDTO.getValor(), cotacao, valorConvertido);
+        } else if ("BRL".equalsIgnoreCase(moedaDestino)) {
+            // USD → BRL: multiplica pela cotação (valor aumenta)
+            valorConvertido = remessaRequestDTO.getValor().multiply(cotacao).setScale(2, RoundingMode.HALF_UP);
+            log.debug("Conversão USD→BRL: {} × {} = {}", remessaRequestDTO.getValor(), cotacao, valorConvertido);
+        } else {
+            throw new IllegalArgumentException("Moeda de destino não suportada: " + moedaDestino);
+        }
+
+        BigDecimal valorTotalDebito = remessaRequestDTO.getValor().add(taxa);
+
+        // Validar saldo na moeda de origem correta
+        validarSaldo(carteiraRemetente, valorTotalDebito, moedaOrigem);
+
+        // Processar limite diário
+        TransacaoDiaria transacaoDiaria = processarLimiteDiario(carteiraRemetente, remessaRequestDTO.getValor());
 
         return new DadosProcessamentoRemessa(
-                carteiraRemetente, carteiraDestinatario, transacaoDiaria,
-                taxa, valorTotalDebito, cotacao, valorConvertido);
+                carteiraRemetente,
+                carteiraDestinatario,
+                transacaoDiaria,
+                taxa,
+                valorTotalDebito,
+                cotacao,
+                valorConvertido,
+                moedaOrigem,
+                moedaDestino
+        );
+    }
+
+    /**
+     * Determina a moeda de origem baseada na moeda de destino
+     * Se destino é USD, origem é BRL e vice-versa
+     */
+    private String determinarMoedaOrigem(String moedaDestino) {
+        if ("USD".equalsIgnoreCase(moedaDestino)) {
+            return "BRL";
+        } else if ("BRL".equalsIgnoreCase(moedaDestino)) {
+            return "USD";
+        } else {
+            throw new IllegalArgumentException("Moeda de destino não suportada: " + moedaDestino);
+        }
     }
 
     private void processarTransacao(DadosProcessamentoRemessa dados) {
-        dados.carteiraRemetente().debitar(dados.valorTotalDebito());
-        dados.carteiraDestinatario().creditar(dados.valorConvertido());
+        log.debug("Processando transação: moedaOrigem={}, moedaDestino={}, valor={}, valorConvertido={}",
+                dados.moedaOrigem(), dados.moedaDestino(), dados.valorTotalDebito(), dados.valorConvertido());
 
+        // Debitar da moeda de origem do remetente (valor + taxa)
+        dados.carteiraRemetente().debitar(dados.valorTotalDebito(), dados.moedaOrigem());
+
+        // Creditar na moeda de destino do destinatário (valor convertido)
+        dados.carteiraDestinatario().creditar(dados.valorConvertido(), dados.moedaDestino());
+
+        // Persistir alterações nas carteiras
         carteiraRepository.save(dados.carteiraRemetente());
         carteiraRepository.save(dados.carteiraDestinatario());
 
+        // Atualizar a transação diária considerando o valor sem taxa
         atualizarTransacaoDiaria(dados.transacaoDiaria(),
                 dados.valorTotalDebito().subtract(dados.taxa()));
     }
@@ -134,9 +197,23 @@ public class RemessaProcessorImpl implements RemessaProcessor {
                 ));
     }
 
-    private void validarSaldo(Carteira carteira, BigDecimal valor) {
-        if (carteira.getSaldo().compareTo(valor) < 0) {
-            throw new SaldoInsuficienteException("Saldo insuficiente para realizar a remessa");
+    private void validarSaldo(Carteira carteira, BigDecimal valor, String moeda) {
+        BigDecimal saldoAtual;
+
+        // Verifica o saldo correspondente à moeda especificada
+        if ("BRL".equalsIgnoreCase(moeda)) {
+            saldoAtual = carteira.getSaldoBRL();
+        } else if ("USD".equalsIgnoreCase(moeda)) {
+            saldoAtual = carteira.getSaldoUSD();
+        } else {
+            throw new IllegalArgumentException("Moeda não suportada: " + moeda);
+        }
+
+        // Valida se o saldo é suficiente para a operação
+        if (saldoAtual.compareTo(valor) < 0) {
+            throw new SaldoInsuficienteException(
+                    String.format("Saldo insuficiente em %s para realizar a remessa", moeda)
+            );
         }
     }
 

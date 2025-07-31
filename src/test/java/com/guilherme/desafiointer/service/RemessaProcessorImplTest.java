@@ -18,6 +18,10 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import java.math.BigDecimal;
+import java.util.Optional;
+
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
 
 @SpringBootTest
 @Import(TestConfig.class)
@@ -56,11 +60,23 @@ class RemessaProcessorImplTest {
 
     @BeforeEach
     void setUp() {
+        // Criar usuários de teste
         usuarioRemetente = criarUsuario(1L, "Remetente");
         usuarioDestinatario = criarUsuario(2L, "Destinatario");
-        carteiraRemetente = criarCarteira(usuarioRemetente, SALDO_INICIAL);
-        carteiraDestinatario = criarCarteira(usuarioDestinatario, BigDecimal.ZERO);
+
+        // Criar carteiras de teste com saldos BRL e USD
+        carteiraRemetente = criarCarteira(usuarioRemetente, new BigDecimal("1000.00"), new BigDecimal("500.00"));
+        carteiraDestinatario = criarCarteira(usuarioDestinatario, new BigDecimal("2000.00"), new BigDecimal("1000.00"));
+
+        // Criar DTO de remessa
         remessaRequestDTO = criarRemessaDTO();
+
+        // Mockar comportamentos para repositórios e serviços dependentes
+        when(carteiraRepository.findByUsuarioIdWithPessimisticLock(usuarioRemetente.getId()))
+                .thenReturn(Optional.of(carteiraRemetente));
+        when(carteiraRepository.findByUsuarioIdWithPessimisticLock(usuarioDestinatario.getId()))
+                .thenReturn(Optional.of(carteiraDestinatario));
+        when(cotacaoService.obterCotacao(anyString())).thenReturn(new BigDecimal("5.00"));
     }
 
     // Métodos auxiliares
@@ -74,11 +90,12 @@ class RemessaProcessorImplTest {
                 .build();
     }
 
-    private Carteira criarCarteira(Usuario usuario, BigDecimal saldo) {
+    private Carteira criarCarteira(Usuario usuario, BigDecimal saldoBRL, BigDecimal saldoUSD) {
         return Carteira.builder()
                 .id(usuario.getId())
                 .usuario(usuario)
-                .saldo(saldo)
+                .saldoBRL(saldoBRL)
+                .saldoUSD(saldoUSD)
                 .build();
     }
 

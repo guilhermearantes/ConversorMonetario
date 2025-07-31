@@ -87,24 +87,28 @@ class RemessaProcessorCacheTest {
         carteiraRemetente = Carteira.builder()
                 .id(1L)
                 .usuario(remetente)
-                .saldo(new BigDecimal("1000.00"))
+                .saldoBRL(new BigDecimal("1000.00"))
+                .saldoUSD(new BigDecimal("500.00"))
                 .build();
 
         carteiraDestinatario = Carteira.builder()
                 .id(2L)
                 .usuario(destinatario)
-                .saldo(new BigDecimal("1000.00"))
+                .saldoBRL(new BigDecimal("2000.00"))
+                .saldoUSD(new BigDecimal("1000.00"))
                 .build();
 
-        // Configurar mocks
+        // Configurar mocks para carteiras
         when(carteiraRepository.findByUsuarioIdWithPessimisticLock(remetente.getId()))
                 .thenReturn(Optional.of(carteiraRemetente));
         when(carteiraRepository.findByUsuarioIdWithPessimisticLock(destinatario.getId()))
                 .thenReturn(Optional.of(carteiraDestinatario));
 
+        // Configurar mocks para cotação
         when(cotacaoService.obterCotacao(anyString()))
                 .thenReturn(new BigDecimal("5.00"));
 
+        // Configurar mocks para transações diárias
         TransacaoDiaria transacaoDiaria = TransacaoDiaria.builder()
                 .usuario(remetente)
                 .data(LocalDate.now())
@@ -113,6 +117,7 @@ class RemessaProcessorCacheTest {
         when(transacaoDiariaRepository.findByUsuarioAndData(any(), any()))
                 .thenReturn(Optional.of(transacaoDiaria));
 
+        // Configurar mocks para estratégias de taxa e limite
         TaxaStrategy taxaStrategy = mock(TaxaStrategy.class);
         when(taxaStrategy.calcularTaxa(any()))
                 .thenReturn(new BigDecimal("2.00"));
@@ -124,7 +129,7 @@ class RemessaProcessorCacheTest {
         when(strategyFactory.getLimiteValidator(any()))
                 .thenReturn(limiteValidator);
 
-        // Limpar caches
+        // Limpar caches antes de cada teste
         cacheManager.getCacheNames()
                 .forEach(cacheName -> cacheManager.getCache(cacheName).clear());
     }

@@ -11,12 +11,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.stream.Collectors;
-
-
 
 /**
  * Serviço responsável pelo gerenciamento de usuários do sistema.
@@ -33,9 +29,11 @@ public class UsuarioService {
     @Transactional
     public Usuario criarUsuario(String nomeCompleto, String email, String senha,
                                 TipoUsuario tipoUsuario, String documento) {
+        // Valida a unicidade do email e do documento
         validarUsuarioUnico(email, documento);
 
         try {
+            // Criação do usuário
             Usuario usuario = Usuario.builder()
                     .nomeCompleto(nomeCompleto)
                     .email(email)
@@ -44,12 +42,17 @@ public class UsuarioService {
                     .documento(documento)
                     .build();
 
+            // Inicializa a carteira com saldos distintos para BRL e USD
             Carteira carteira = Carteira.builder()
                     .usuario(usuario)
-                    .saldo(BigDecimal.ZERO)
+                    .saldoBRL(BigDecimal.ZERO)
+                    .saldoUSD(BigDecimal.ZERO)
                     .build();
 
+            // Associa a carteira ao usuário
             usuario.setCarteira(carteira);
+
+            // Salva o usuário e a carteira
             return usuarioRepository.save(usuario);
         } catch (Exception e) {
             log.error("Erro ao criar usuário: {}", e.getMessage());

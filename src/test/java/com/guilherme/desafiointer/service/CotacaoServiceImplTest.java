@@ -125,6 +125,77 @@ class CotacaoServiceImplTest {
                 assertEquals(cotacaoSabado, cotacaoDomingo, "Cotações devem ser iguais no fim de semana");
             }
         }
+
+        @Test
+        @DisplayName("Deve usar cache em finais de semana para evitar consultas repetidas")
+        void deveUsarCacheEmFinaisDeSemana() {
+            LocalDateTime sabado = LocalDateTime.of(2024, 2, 17, 10, 0); // Sábado
+            LocalDateTime domingo = sabado.plusDays(1); // Domingo
+
+            CotacaoHistorico ultimaCotacao = TestDataBuilder.criarCotacaoHistorico(
+                    TestDataBuilder.MOEDA_PADRAO,
+                    TestDataBuilder.COTACAO_PADRAO,
+                    false
+            );
+
+            when(cotacaoHistoricoRepository.findUltimaCotacaoUtil(anyString()))
+                    .thenReturn(Optional.of(ultimaCotacao));
+
+            // Testando cache no sábado
+            try (MockedStatic<LocalDateTime> mockedStatic = Mockito.mockStatic(LocalDateTime.class)) {
+                mockedStatic.when(LocalDateTime::now).thenReturn(sabado);
+                BigDecimal cotacaoSabado = cotacaoService.obterCotacao(TestDataBuilder.MOEDA_PADRAO);
+
+                // Verifica que não busca novamente o histórico no domingo, usando o cache
+                mockedStatic.when(LocalDateTime::now).thenReturn(domingo);
+                BigDecimal cotacaoDomingo = cotacaoService.obterCotacao(TestDataBuilder.MOEDA_PADRAO);
+
+                // Assertivas
+                assertAll(
+                        () -> assertEquals(cotacaoSabado, cotacaoDomingo, "Cotação deve ser reutilizada do cache"),
+                        () -> verify(cotacaoHistoricoRepository, times(1))
+                                .findUltimaCotacaoUtil(anyString())
+                );
+            }
+        }
+
+        @Test
+        @DisplayName("Deve retornar cotação padrão após falhas continuadas na API e ausência de histórico")
+        void deveRetornarCotacaoPadraoAposFalhasContinuadas() {
+            String moeda = TestDataBuilder.MOEDA_PADRAO;
+
+            // Simula falha contínua da API
+            when(restTemplate.getForObject(anyString(), any()))
+                    .thenThrow(new RestClientException("Erro na API"));
+
+            // Simula ausência de histórico
+            when(cotacaoHistoricoRepository.findUltimaCotacaoUtil(anyString()))
+                    .thenReturn(Optional.empty());
+
+            // Quando
+            BigDecimal cotacao = cotacaoService.obterCotacao(moeda);
+
+            // Então
+            assertAll(
+                    () -> verify(restTemplate, times(1)).getForObject(anyString(), any()),
+                    () -> verify(cotacaoHistoricoRepository, times(1)).findUltimaCotacaoUtil(moeda),
+                    () -> assertEquals(TestDataBuilder.COTACAO_PADRAO, cotacao, "Deve usar cotação padrão após falhas")
+            );
+        }
+
+        @Test
+        @DisplayName("Deve falhar ao consultar cotação de moeda inválida durante final de semana")
+        void deveFalharParaMoedaInvalidaDuranteFimDeSemana() {
+            LocalDateTime sabado = LocalDateTime.of(2024, 2, 17, 10, 0);
+
+            try (MockedStatic<LocalDateTime> mockedStatic = Mockito.mockStatic(LocalDateTime.class)) {
+                mockedStatic.when(LocalDateTime::now).thenReturn(sabado);
+
+                assertThrows(IllegalArgumentException.class,
+                        () -> cotacaoService.obterCotacao("INVALID"),
+                        "Moeda não suportada deve lançar exceção mesmo em finais de semana");
+            }
+        }
     }
 
     @Nested

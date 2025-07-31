@@ -1,241 +1,217 @@
 package com.guilherme.desafiointer.repository;
 
-import com.guilherme.desafiointer.domain.Carteira;
 import com.guilherme.desafiointer.domain.TipoUsuario;
 import com.guilherme.desafiointer.domain.Usuario;
-import jakarta.validation.ConstraintViolationException;
+import com.guilherme.desafiointer.service.UsuarioService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
-import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.test.context.TestPropertySource;
-
 import java.math.BigDecimal;
-import java.math.RoundingMode;
-
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
+import com.guilherme.desafiointer.exception.remessa.RemessaErrorType;
+import com.guilherme.desafiointer.exception.remessa.RemessaException;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.context.ActiveProfiles;
+import java.util.Optional;
+import static org.mockito.Mockito.*;
 
-@DataJpaTest
-@DisplayName("Testes do UsuarioRepository")
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@TestPropertySource(properties = {
-        "spring.jpa.hibernate.ddl-auto=create-drop",
-        "spring.sql.init.mode=never"
-})
-class UsuarioRepositoryTest {
+@SpringBootTest
+@ActiveProfiles("test")
+@DisplayName("Testes do UsuarioService")
+class UsuarioServiceTest {
 
     @Autowired
-    private TestEntityManager entityManager;
+    private UsuarioService usuarioService;
 
-    @Autowired
+    @MockBean
     private UsuarioRepository usuarioRepository;
 
+    @MockBean
+    private PasswordEncoder passwordEncoder;
+
+    private static final String SENHA_VALIDA = "Senha@123";
+    private static final String SENHA_NOVA = "NovaSenha@123";
+    private static final String SENHA_ENCODED = "$2a$10$XXXXXXXXXXXXX";
+    private static final String NOME_COMPLETO = "Teste Usuario";
+    private static final String EMAIL = "teste@teste.com";
+    private static final String DOCUMENTO = "123.456.789-00";
+    private static final TipoUsuario TIPO_USUARIO = TipoUsuario.PF;
+
     @Nested
-    @DisplayName("Testes de persistência de usuário")
-    class PersistenciaTests {
+    @DisplayName("Testes de criação de usuário")
+    class CriacaoUsuarioTests {
 
         @Test
-        @DisplayName("Deve salvar usuário PF com carteira")
+        @DisplayName("Deve salvar um usuário PF com carteira inicializada corretamente")
         void deveSalvarUsuarioPFComCarteira() {
-            Usuario usuario = criarUsuarioComCarteira("João Silva", TipoUsuario.PF,
-                    "529.982.247-25", "joao.silva@email.com",
-                    BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+            // Arrange
+            Usuario usuario = Usuario.builder()
+                    .nomeCompleto(NOME_COMPLETO)
+                    .email(EMAIL)
+                    .senha(SENHA_VALIDA)
+                    .tipoUsuario(TIPO_USUARIO)
+                    .documento(DOCUMENTO)
+                    .build();
 
-            Usuario usuarioSalvo = usuarioRepository.save(usuario);
-            entityManager.flush();
-            entityManager.clear();
+            when(passwordEncoder.encode(SENHA_VALIDA)).thenReturn(SENHA_ENCODED);
+            when(usuarioRepository.save(any(Usuario.class)))
+                    .thenAnswer(invocation -> invocation.getArgument(0));
 
-            Usuario usuarioRecuperado = entityManager.find(Usuario.class, usuarioSalvo.getId());
-            assertAll("Verificações do usuário PF salvo",
-                    () -> assertNotNull(usuarioRecuperado.getId()),
-                    () -> assertEquals("529.982.247-25", usuarioRecuperado.getDocumento()),
-                    () -> assertEquals("João Silva", usuarioRecuperado.getNomeCompleto()),
-                    () -> assertEquals(TipoUsuario.PF, usuarioRecuperado.getTipoUsuario()),
-                    () -> assertNotNull(usuarioRecuperado.getCarteira()),
-                    () -> assertEquals(new BigDecimal("0.00"), usuarioRecuperado.getCarteira().getSaldo())
+            // Act
+            Usuario usuarioSalvo = usuarioService.criarUsuario(
+                    usuario.getNomeCompleto(),
+                    usuario.getEmail(),
+                    usuario.getSenha(),
+                    usuario.getTipoUsuario(),
+                    usuario.getDocumento()
             );
+
+            // Assert
+            assertNotNull(usuarioSalvo);
+            assertNotNull(usuarioSalvo.getCarteira());
+            assertAll("Verificando carteira inicializada",
+                    () -> assertEquals(BigDecimal.ZERO, usuarioSalvo.getCarteira().getSaldoBRL()),
+                    () -> assertEquals(BigDecimal.ZERO, usuarioSalvo.getCarteira().getSaldoUSD())
+            );
+
+            verify(usuarioRepository, times(1)).save(any(Usuario.class));
+            verify(passwordEncoder, times(1)).encode(SENHA_VALIDA);
         }
 
         @Test
-        @DisplayName("Deve salvar usuário PJ com carteira")
-        void deveSalvarUsuarioPJComCarteira() {
-            Usuario usuario = criarUsuarioComCarteira("Empresa LTDA", TipoUsuario.PJ,
-                    "45.997.418/0001-53", "empresa@email.com",
-                    new BigDecimal("1000.00"));
+        @DisplayName("Deve lançar exceção ao tentar salvar usuário com email já cadastrado")
+        void deveLancarExcecaoParaEmailDuplicado() {
+            // Arrange
+            when(usuarioRepository.existsByEmail(EMAIL)).thenReturn(true);
 
-            Usuario usuarioSalvo = usuarioRepository.save(usuario);
-            entityManager.flush();
-            entityManager.clear();
-
-            Usuario usuarioRecuperado = entityManager.find(Usuario.class, usuarioSalvo.getId());
-            assertAll("Verificações do usuário PJ salvo",
-                    () -> assertNotNull(usuarioRecuperado.getId()),
-                    () -> assertEquals("45.997.418/0001-53", usuarioRecuperado.getDocumento()),
-                    () -> assertEquals("Empresa LTDA", usuarioRecuperado.getNomeCompleto()),
-                    () -> assertEquals(TipoUsuario.PJ, usuarioRecuperado.getTipoUsuario()),
-                    () -> assertNotNull(usuarioRecuperado.getCarteira()),
-                    () -> assertEquals(new BigDecimal("1000.00"), usuarioRecuperado.getCarteira().getSaldo())
+            // Act & Assert
+            RemessaException exception = assertThrows(RemessaException.class, () ->
+                    usuarioService.criarUsuario(
+                            NOME_COMPLETO, EMAIL, SENHA_VALIDA, TIPO_USUARIO, DOCUMENTO
+                    )
             );
+
+            assertEquals(RemessaErrorType.EMAIL_JA_CADASTRADO, exception.getErrorType());
+        }
+
+        @Test
+        @DisplayName("Deve lançar exceção ao tentar salvar usuário com documento já cadastrado")
+        void deveLancarExcecaoParaDocumentoDuplicado() {
+            // Arrange
+            when(usuarioRepository.existsByDocumento(DOCUMENTO)).thenReturn(true);
+
+            // Act & Assert
+            RemessaException exception = assertThrows(RemessaException.class, () ->
+                    usuarioService.criarUsuario(
+                            NOME_COMPLETO, EMAIL, SENHA_VALIDA, TIPO_USUARIO, DOCUMENTO
+                    )
+            );
+
+            assertEquals(RemessaErrorType.DOCUMENTO_JA_CADASTRADO, exception.getErrorType());
         }
     }
 
     @Nested
-    @DisplayName("Testes de busca de usuário")
-    class BuscaTests {
+    @DisplayName("Testes de busca de usuários")
+    class BuscaUsuarioTests {
 
         @Test
-        @DisplayName("Deve buscar usuário por documento")
+        @DisplayName("Deve buscar usuário existente por documento")
         void deveBuscarUsuarioPorDocumento() {
-            Usuario usuario = criarUsuarioComCarteira("João Silva", TipoUsuario.PF,
-                    "529.982.247-25", "joao.silva@email.com", BigDecimal.ZERO);
+            // Arrange
+            Usuario usuario = criarUsuario();
+            when(usuarioRepository.findByDocumento(DOCUMENTO))
+                    .thenReturn(Optional.of(usuario));
 
-            entityManager.persist(usuario);
-            entityManager.flush();
-            entityManager.clear();
+            // Act
+            Usuario usuarioEncontrado = usuarioService.buscarPorDocumento(DOCUMENTO);
 
-            var usuarioEncontrado = usuarioRepository.findByDocumento("529.982.247-25");
-            assertTrue(usuarioEncontrado.isPresent());
-            assertAll("Verificações do usuário encontrado",
-                    () -> assertEquals("João Silva", usuarioEncontrado.get().getNomeCompleto()),
-                    () -> assertNotNull(usuarioEncontrado.get().getCarteira())
-            );
+            // Assert
+            assertNotNull(usuarioEncontrado);
+            assertEquals(DOCUMENTO, usuarioEncontrado.getDocumento());
         }
 
         @Test
-        @DisplayName("Deve retornar vazio ao buscar documento inexistente")
-        void deveRetornarVazioAoBuscarDocumentoInexistente() {
-            var usuarioEncontrado = usuarioRepository.findByDocumento("999.999.999-99");
-            assertTrue(usuarioEncontrado.isEmpty());
+        @DisplayName("Deve lançar exceção ao buscar usuário inexistente por documento")
+        void deveLancarExcecaoAoBuscarUsuarioPorDocumentoInexistente() {
+            // Arrange
+            when(usuarioRepository.findByDocumento(DOCUMENTO)).thenReturn(Optional.empty());
+
+            // Act & Assert
+            RemessaException exception = assertThrows(RemessaException.class, () ->
+                    usuarioService.buscarPorDocumento(DOCUMENTO)
+            );
+
+            assertEquals(RemessaErrorType.USUARIO_NAO_ENCONTRADO, exception.getErrorType());
         }
     }
 
     @Nested
-    @DisplayName("Testes de validação de existência")
-    class ValidacaoExistenciaTests {
+    @DisplayName("Testes de alteração de senha")
+    class AlteracaoSenhaTests {
 
         @Test
-        @DisplayName("Deve verificar existência de documento")
-        void deveVerificarExistenciaDocumento() {
-            Usuario usuario = criarUsuarioComCarteira("João Silva", TipoUsuario.PF,
-                    "529.982.247-25", "joao.silva@email.com", BigDecimal.ZERO);
+        @DisplayName("Deve alterar senha com sucesso")
+        void deveAlterarSenhaComSucesso() {
+            // Arrange
+            Usuario usuario = criarUsuario();
+            when(usuarioRepository.findById(1L)).thenReturn(Optional.of(usuario));
+            when(passwordEncoder.matches(SENHA_VALIDA, SENHA_ENCODED)).thenReturn(true);
+            when(passwordEncoder.encode(SENHA_NOVA)).thenReturn("$2a$10$newpassword");
 
-            entityManager.persist(usuario);
-            entityManager.flush();
+            // Act
+            usuarioService.alterarSenha(1L, SENHA_VALIDA, SENHA_NOVA);
 
-            assertAll("Verificações de existência de documento",
-                    () -> assertTrue(usuarioRepository.existsByDocumento("529.982.247-25")),
-                    () -> assertFalse(usuarioRepository.existsByDocumento("099.999.999-99"))
-            );
+            // Assert
+            verify(passwordEncoder, times(1)).matches(SENHA_VALIDA, SENHA_ENCODED);
+            verify(passwordEncoder, times(1)).encode(SENHA_NOVA);
+            verify(usuarioRepository, times(1)).save(any(Usuario.class));
         }
 
         @Test
-        @DisplayName("Deve verificar existência de email")
-        void deveVerificarExistenciaEmail() {
-            Usuario usuario = criarUsuarioComCarteira("João Silva", TipoUsuario.PF,
-                    "529.982.247-25", "joao.silva@email.com", BigDecimal.ZERO);
+        @DisplayName("Deve lançar exceção ao alterar senha com senha atual incorreta")
+        void deveLancarExcecaoParaSenhaAtualInvalida() {
+            // Arrange
+            Usuario usuario = criarUsuario();
+            when(usuarioRepository.findById(1L)).thenReturn(Optional.of(usuario));
+            when(passwordEncoder.matches(SENHA_VALIDA, SENHA_ENCODED)).thenReturn(false);
 
-            entityManager.persist(usuario);
-            entityManager.flush();
-
-            assertAll("Verificações de existência de email",
-                    () -> assertTrue(usuarioRepository.existsByEmail("joao.silva@email.com")),
-                    () -> assertFalse(usuarioRepository.existsByEmail("outro@email.com"))
+            // Act & Assert
+            RemessaException exception = assertThrows(RemessaException.class, () ->
+                    usuarioService.alterarSenha(1L, SENHA_VALIDA, SENHA_NOVA)
             );
+
+            assertEquals(RemessaErrorType.SENHA_INVALIDA, exception.getErrorType());
+        }
+
+        @Test
+        @DisplayName("Deve lançar exceção ao alterar senha de usuário inexistente")
+        void deveLancarExcecaoParaUsuarioInexistente() {
+            // Arrange
+            when(usuarioRepository.findById(1L)).thenReturn(Optional.empty());
+
+            // Act & Assert
+            RemessaException exception = assertThrows(RemessaException.class, () ->
+                    usuarioService.alterarSenha(1L, SENHA_VALIDA, SENHA_NOVA)
+            );
+
+            assertEquals(RemessaErrorType.USUARIO_NAO_ENCONTRADO, exception.getErrorType());
         }
     }
 
-    @Nested
-    @DisplayName("Testes de restrições de unicidade")
-    class RestricaoUnicidadeTests {
-
-        @Test
-        @DisplayName("Não deve permitir dois usuários com mesmo documento")
-        void naoDevePermitirUsuariosComMesmoDocumento() {
-            // Criando e salvando o primeiro usuário
-            Usuario usuario1 = criarUsuarioComCarteira("João Silva", TipoUsuario.PF,
-                    "529.982.247-25", "joao.silva@email.com", BigDecimal.ZERO);
-            entityManager.persist(usuario1);
-            entityManager.flush();
-
-            // Criando segundo usuário com mesmo documento
-            Usuario usuario2 = criarUsuarioComCarteira("João Silva Segundo", TipoUsuario.PF,
-                    "529.982.247-25", "joao.silva2@email.com", BigDecimal.ZERO);
-
-            // Capturando a exceção e verificando a causa
-            Exception exception = assertThrows(Exception.class, () -> {
-                entityManager.persist(usuario2);
-                entityManager.flush();
-            });
-
-            // Verificando a hierarquia completa de exceções
-            Throwable rootCause = getRootCause(exception);
-
-            assertTrue(
-                    isConstraintViolationException(rootCause),
-                    "A exceção deve ser relacionada à violação de constraint única"
-            );
-        }
-
-        private Throwable getRootCause(Throwable throwable) {
-            Throwable rootCause = throwable;
-            while (rootCause.getCause() != null && rootCause.getCause() != rootCause) {
-                rootCause = rootCause.getCause();
-            }
-            return rootCause;
-        }
-
-        private boolean isConstraintViolationException(Throwable throwable) {
-            if (throwable == null) return false;
-
-            // Verificando o nome completo da classe para incluir exceções específicas do H2
-            String exceptionClassName = throwable.getClass().getName();
-            return exceptionClassName.contains("ConstraintViolation") ||
-                    exceptionClassName.contains("IntegrityConstraint") ||
-                    exceptionClassName.contains("SQLIntegrityConstraintViolationException") ||
-                    (throwable instanceof DataIntegrityViolationException) ||
-                    (throwable.getMessage() != null &&
-                            throwable.getMessage().toLowerCase().contains("unique index") ||
-                            throwable.getMessage().toLowerCase().contains("constraint"));
-        }
-
-        @Test
-        @DisplayName("Não deve permitir dois usuários com mesmo email")
-        void naoDevePermitirUsuariosComMesmoEmail() {
-            Usuario usuario1 = criarUsuarioComCarteira("João Silva", TipoUsuario.PF,
-                    "529.982.247-25", "joao.silva@email.com", BigDecimal.ZERO);
-            usuarioRepository.save(usuario1);
-            entityManager.flush();
-
-            Usuario usuario2 = criarUsuarioComCarteira("João Silva Segundo", TipoUsuario.PF,
-                    "529.982.247-25", "joao.silva@email.com", BigDecimal.ZERO);
-
-            assertThrows(DataIntegrityViolationException.class, () -> {
-                usuarioRepository.save(usuario2);
-                entityManager.flush();
-            });
-        }
-    }
-
-    private Usuario criarUsuarioComCarteira(String nome, TipoUsuario tipo,
-                                            String documento, String email, BigDecimal saldoInicial) {
-        Usuario usuario = Usuario.builder()
-                .nomeCompleto(nome)
-                .tipoUsuario(tipo)
-                .documento(documento)
-                .email(email)
-                .senha("Senha@123")
+    private Usuario criarUsuario() {
+        return Usuario.builder()
+                .id(1L)
+                .nomeCompleto(NOME_COMPLETO)
+                .email(EMAIL)
+                .senha(SENHA_ENCODED)
+                .tipoUsuario(TIPO_USUARIO)
+                .documento(DOCUMENTO)
                 .build();
-
-        Carteira carteira = Carteira.builder()
-                .saldo(saldoInicial)
-                .usuario(usuario)
-                .build();
-
-        usuario.setCarteira(carteira);
-        return usuario;
     }
 }

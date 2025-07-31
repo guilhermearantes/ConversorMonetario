@@ -1,79 +1,85 @@
 package com.guilherme.desafiointer.test.base;
 
-import com.guilherme.desafiointer.domain.*;
+import com.guilherme.desafiointer.domain.Remessa;
+import com.guilherme.desafiointer.domain.TipoUsuario;
+import com.guilherme.desafiointer.domain.Usuario;
 import com.guilherme.desafiointer.dto.remessa.RemessaRequestDTO;
+import com.guilherme.desafiointer.repository.CarteiraRepository;
+import com.guilherme.desafiointer.repository.RemessaRepository;
+import com.guilherme.desafiointer.repository.TransacaoDiariaRepository;
+import com.guilherme.desafiointer.repository.UsuarioRepository;
 import com.guilherme.desafiointer.test.TestBase;
+import jakarta.transaction.Transactional;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.TestInstance;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.Page;
-
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDateTime;
-
 import static org.junit.jupiter.api.Assertions.*;
 
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@SpringBootTest
+@Transactional
 public abstract class BaseRemessaTest extends TestBase {
-    // Constantes específicas de Remessa
-    protected static final String MOEDA_DESTINO = "USD";
-    protected static final BigDecimal VALOR_REMESSA_PADRAO = new BigDecimal("100.00");
-    protected static final BigDecimal TAXA_PF_PERCENTUAL = new BigDecimal("0.02");
 
-    // Dados do Remetente
-    protected static final String NOME_REMETENTE = "Remetente PF";
-    protected static final String EMAIL_REMETENTE = "remetente@teste.com";
-    protected static final String CPF_REMETENTE = "529.982.247-25";
+    protected Usuario usuarioRemetente;
+    protected Usuario usuarioDestinatario;
 
-    // Dados do Destinatário
-    protected static final String NOME_DESTINATARIO = "Destinatário PF";
-    protected static final String EMAIL_DESTINATARIO = "destinatario@teste.com";
-    protected static final String CPF_DESTINATARIO = "248.438.034-80";
-
-    // Atributos protegidos para testes
-    protected Usuario usuarioRemetentePF;
-    protected Usuario usuarioDestinatarioPF;
+    @Autowired
+    public BaseRemessaTest(UsuarioRepository usuarioRepository,
+                           CarteiraRepository carteiraRepository,
+                           RemessaRepository remessaRepository,
+                           TransacaoDiariaRepository transacaoDiariaRepository) {
+        super(usuarioRepository, carteiraRepository, remessaRepository, transacaoDiariaRepository);
+    }
 
     @BeforeEach
     protected void setUpBase() {
-        limparBancoDados();
-        criarUsuarios();
+        limparBancoDeDados();
+        configurarUsuarios();
     }
 
-    protected void criarUsuarios() {
-        usuarioRemetentePF = criarEPersistirUsuario(NOME_REMETENTE, EMAIL_REMETENTE,
-                CPF_REMETENTE, TipoUsuario.PF);
-        usuarioDestinatarioPF = criarEPersistirUsuario(NOME_DESTINATARIO, EMAIL_DESTINATARIO,
-                CPF_DESTINATARIO, TipoUsuario.PF);
-    }
+    private void configurarUsuarios() {
+        // Criar usuário remetente com saldo inicial em BRL e USD
+        usuarioRemetente = salvarUsuarioComCarteira(
+                "João Remetente",
+                "remetente@email.com",
+                "123.456.789-00",
+                TipoUsuario.PF,
+                new BigDecimal("1000.00"), // saldoBRL
+                new BigDecimal("500.00")   // saldoUSD
+        );
 
-    protected void verificarRemessaProcessada(Remessa remessa, BigDecimal valorRemessa) {
-        assertAll("Validação da remessa processada",
-                () -> assertNotNull(remessa.getId(), "ID da remessa deve ser gerado"),
-                () -> assertEquals(valorRemessa, remessa.getValor(), "Valor da remessa deve ser mantido"),
-                () -> assertEquals(calcularTaxaEsperada(valorRemessa), remessa.getTaxa(),
-                        "Taxa deve ser calculada corretamente"),
-                () -> assertTrue(remessa.getDataCriacao().isBefore(LocalDateTime.now().plusSeconds(1)),
-                        "Data de criação deve ser atual")
+        // Criar usuário destinatário com saldo inicial em BRL e USD
+        usuarioDestinatario = salvarUsuarioComCarteira(
+                "Maria Destinatária",
+                "destinataria@email.com",
+                "987.654.321-00",
+                TipoUsuario.PF,
+                new BigDecimal("2000.00"), // saldoBRL
+                new BigDecimal("1000.00")  // saldoUSD
         );
     }
 
-    protected void verificarSaldoAposRemessa(BigDecimal valorRemessa, BigDecimal taxa) {
-        Carteira carteiraAtualizada = carteiraRepository
-                .findByUsuarioId(usuarioRemetentePF.getId())
-                .orElseThrow(() -> new AssertionError("Carteira não encontrada"));
-
-        BigDecimal valorEsperado = SALDO_PADRAO
-                .subtract(valorRemessa)
-                .subtract(taxa);
-
-        assertEquals(valorEsperado, carteiraAtualizada.getSaldo(),
-                "Saldo deve ser atualizado após a remessa");
+    /**
+     * Método auxiliar para calcular a taxa esperada com base em um valor e percentual fornecido.
+     *
+     * @param valor      Valor da remessa.
+     * @param percentual Percentual da taxa.
+     * @return Taxa calculada.
+     */
+    protected BigDecimal calcularTaxaEsperada(BigDecimal valor, BigDecimal percentual) {
+        return valor.multiply(percentual).setScale(2, BigDecimal.ROUND_HALF_UP);
     }
 
+    /**
+     * Verifica se o histórico de transações inclui a remessa realizada.
+     *
+     * @param remessaRealizada A remessa que deve estar no histórico.
+     */
     protected void verificarHistoricoTransacoes(Remessa remessaRealizada) {
         Page<Remessa> historico = remessaRepository.buscarHistoricoTransacoes(
-                usuarioRemetentePF,
+                usuarioRemetente,
                 LocalDateTime.now().minusDays(1),
                 LocalDateTime.now(),
                 org.springframework.data.domain.PageRequest.of(0, 10)
@@ -86,11 +92,22 @@ public abstract class BaseRemessaTest extends TestBase {
         );
     }
 
-    protected BigDecimal calcularTaxaEsperada(BigDecimal valor) {
-        return valor.multiply(TAXA_PF_PERCENTUAL).setScale(2, RoundingMode.HALF_UP);
-    }
-
-    protected RemessaRequestDTO criarRemessaDTO(Long remetenteId, Long destinatarioId, BigDecimal valor) {
-        return super.criarRemessaDTO(remetenteId, destinatarioId, valor, MOEDA_DESTINO);
+    /**
+     * Cria um DTO para teste de remessa.
+     *
+     * @param usuarioId       ID do usuário remetente.
+     * @param destinatarioId  ID do usuário destinatário.
+     * @param valor           Valor da remessa a ser transferido.
+     * @param moedaDestino    Moeda desejada para conversão.
+     * @return Um objeto RemessaRequestDTO configurado.
+     */
+    protected RemessaRequestDTO criarRemessaDTO(final Long usuarioId, final Long destinatarioId,
+                                                final BigDecimal valor, final String moedaDestino) {
+        return RemessaRequestDTO.builder()
+                .usuarioId(usuarioId)
+                .destinatarioId(destinatarioId)
+                .valor(valor)
+                .moedaDestino(moedaDestino)
+                .build();
     }
 }

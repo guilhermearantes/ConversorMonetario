@@ -28,6 +28,6 @@ public class RemessaRequestDTO {
     private BigDecimal valor;
 
     @NotNull(message = "Moeda de destino é obrigatória")
-    @Pattern(regexp = "^[A-Z]{3}$", message = "Moeda destino deve seguir o padrão ISO-4217")
+        @Pattern(regexp = "^[A-Z]{3}$", message = "Moeda destino deve seguir o padrão ISO-4217")
     private String moedaDestino;
 }

@@ -23,22 +23,44 @@ public class Carteira {
     private Long id;
 
     @Column(nullable = false)
-    private BigDecimal saldo;
+    private BigDecimal saldoBRL;
+
+    @Column(nullable = false)
+    private BigDecimal saldoUSD;
 
     @OneToOne
     @JoinColumn(name = "usuario_id", nullable = false)
     private Usuario usuario;
 
-    public void debitar(BigDecimal valor) {
-        if (this.saldo.compareTo(valor) < 0) {
-            throw new SaldoInsuficienteException("Saldo insuficiente para realizar a remessa");
+    public void debitar(BigDecimal valor, String moeda) {
+        if ("BRL".equalsIgnoreCase(moeda)) {
+            if (this.saldoBRL.compareTo(valor) < 0) {
+                throw new SaldoInsuficienteException(
+                        String.format("Saldo insuficiente em %s para realizar a operação. Saldo atual: %s, Valor solicitado: %s",
+                                moeda, this.saldoBRL, valor)
+                );
+            }
+            this.saldoBRL = this.saldoBRL.subtract(valor);
+        } else if ("USD".equalsIgnoreCase(moeda)) {
+            if (this.saldoUSD.compareTo(valor) < 0) {
+                throw new SaldoInsuficienteException(
+                        String.format("Saldo insuficiente em %s para realizar a operação. Saldo atual: %s, Valor solicitado: %s",
+                                moeda, this.saldoUSD, valor)
+                );
+            }
+            this.saldoUSD = this.saldoUSD.subtract(valor);
+        } else {
+            throw new IllegalArgumentException("Moeda não suportada: " + moeda);
         }
-        log.debug("Realizando operação de débito");
-        this.saldo = this.saldo.subtract(valor);
     }
 
-    public void creditar(BigDecimal valor) {
-        log.debug("Realizando operação de crédito");
-        this.saldo = this.saldo.add(valor);
+    public void creditar(BigDecimal valor, String moeda) {
+        if ("BRL".equalsIgnoreCase(moeda)) {
+            this.saldoBRL = this.saldoBRL.add(valor);
+        } else if ("USD".equalsIgnoreCase(moeda)) {
+            this.saldoUSD = this.saldoUSD.add(valor);
+        } else {
+            throw new IllegalArgumentException("Moeda não suportada: " + moeda);
+        }
     }
 }
