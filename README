@@ -1,4 +1,4 @@
-# 💸 Desafio Java – Banco Inter
+# 💸 Desafio Java 
 
 Este projeto implementa um serviço de remessa entre usuários Pessoa Física (PF) e Pessoa Jurídica (PJ), com conversão automática de Real para Dólar e controle de limites diários por tipo de usuário.
 
